@@ -9,7 +9,7 @@
  *     event.dataTransfer.getData('application/reactflow')
  * which is now `shape:<slug>` instead of one of the old hardcoded enums.
  */
-import { GripVertical, Layers, Loader2, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, Layers, Loader2, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import type { ShapeDefinition } from '@/lib/api';
 
 import { useShapeCatalog } from './nodes/ShapeCatalogProvider';
+import ToolRegistryList from './ToolRegistryList';
 
 const DRAG_PREFIX = 'shape:';
 
@@ -86,6 +87,7 @@ interface NodePaletteProps {
 export default function NodePalette(_props: NodePaletteProps) {
   const { categories, loading, error } = useShapeCatalog();
   const [query, setQuery] = useState('');
+  const [toolsOpen, setToolsOpen] = useState(true);
 
   const filteredCategories = useMemo(() => {
     if (!query.trim()) return categories;
@@ -152,6 +154,31 @@ export default function NodePalette(_props: NodePaletteProps) {
             </section>
           ))
         )}
+
+        {/* Tools registry — every agent_tools.Tool row, with a Test button. */}
+        <Separator className="my-2" />
+        <section className="flex flex-col min-h-0">
+          <button
+            type="button"
+            onClick={() => setToolsOpen((v) => !v)}
+            className="flex items-center gap-1.5 px-1 pb-2 text-left w-full hover:text-foreground transition-colors"
+            aria-expanded={toolsOpen}
+          >
+            {toolsOpen ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground/70" />
+            )}
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Tools
+            </p>
+          </button>
+          {toolsOpen && (
+            <div className="max-h-[40vh] flex flex-col min-h-0">
+              <ToolRegistryList hideHeading />
+            </div>
+          )}
+        </section>
       </div>
     </aside>
   );

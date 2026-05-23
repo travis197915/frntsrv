@@ -129,6 +129,10 @@ export const api = makeClient(BUILDER_BASE_URL);
  *  Lives at /api/ingest/ on the same Django origin as the builder. */
 export const ingestApi = makeClient(`${DJANGO_ORIGIN}/api/ingest`);
 
+/** DB-backed tool registry + LangGraph invoke surface.
+ *  Mounted at /api/agent-tools/ on the same Django origin as the builder. */
+export const toolsApi = makeClient(`${DJANGO_ORIGIN}/api/agent-tools`);
+
 // ── SOP graph types ────────────────────────────────────────────────────────
 
 export type SopGraphNodeType =

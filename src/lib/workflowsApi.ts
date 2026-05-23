@@ -13,6 +13,7 @@
 
 import {
   api,
+  toolsApi,
   type BuilderAttachedAgent,
   type BuilderConnection,
   type BuilderGraph,
@@ -78,14 +79,59 @@ export interface AttachableSopSummary {
   doc_format?: string;
 }
 
+/**
+ * One tool surfaced by `/api/builder/workflows/:id/attachable/` and
+ * `/api/agent-tools/`.  The same envelope is used in three places in the
+ * SPA:
+ *   • left palette "Tools" section
+ *   • RulePicker right-rail registry
+ *   • ConfigPanel grouped list under each rule
+ */
 export interface AttachableTool {
-  key: string;             // "agent:<endpoint_id>"
-  endpoint_id: string;
+  key: string;                 // "tool:<name>" (langchain) or "agent:<endpoint>" (api_agent)
+  /** UUID of the agent_tools.Tool row. */
+  tool_id?: string;
+  /** Distinguishes LangChain tools from registered runtime API agents. */
+  tool_kind?: 'langchain' | 'api_agent';
+  /** Alias of tool_kind kept for legacy `tool_calls` consumers. */
+  kind?: 'langchain' | 'api_agent';
+  /** Stable slug (also the LangChain tool name). */
   name: string;
-  method: string;
-  url: string;
+  /** Human-friendly label (falls back to `name`). */
+  display_name?: string;
   description?: string;
+  /** Pydantic JSON-Schema for the tool's input model. */
+  args_schema?: Record<string, unknown>;
+  /** API endpoint to POST args to (for langchain: /api/agent-tools/{name}/invoke). */
+  invoke_url?: string;
+  /** Legacy api_agent fields. */
+  endpoint_id?: string;
+  method?: string;
+  url?: string;
   auth_type?: string;
+}
+
+/** One tool already attached to a canvas node (read from the binding tables). */
+export interface AttachedTool {
+  /** UUID of the NodeToolBinding row. */
+  id: string;
+  /** UUID of the referenced agent_tools.Tool row. */
+  tool_id: string;
+  name: string;
+  display_name?: string;
+  description?: string;
+  tool_kind: 'langchain' | 'api_agent';
+  /** Alias kept for legacy code paths. */
+  kind?: 'langchain' | 'api_agent';
+  invoke_url?: string;
+  args_schema?: Record<string, unknown>;
+  args_template?: Record<string, unknown>;
+  endpoint_id?: string;
+  /** Set when this tool was picked while attaching a specific rule. */
+  rule_binding_id?: string | null;
+  /** Convenience: the rule_key of the rule it was picked alongside. */
+  rule_key?: string | null;
+  ordering?: number;
 }
 
 export interface AttachableExclusion {
@@ -435,6 +481,51 @@ export const workflowsApi = {
   async deactivate(id: string): Promise<WorkflowSummary> {
     const wf = await api.post<BuilderWorkflow>(`/workflows/${id}/deactivate/`, {});
     return toSummary(wf);
+  },
+};
+
+// ── Tool registry API ──────────────────────────────────────────────────────
+
+export interface ToolRegistryEntry {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  kind: 'langchain' | 'api_agent';
+  tool_kind: 'langchain' | 'api_agent';
+  invoke_url: string;
+  args_schema: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  endpoint_id?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ToolInvokeResponse {
+  ok: boolean;
+  tool: string;
+  result?: unknown;
+  error?: string;
+}
+
+export const toolRegistryApi = {
+  async list(): Promise<ToolRegistryEntry[]> {
+    return toolsApi.get<ToolRegistryEntry[]>('/');
+  },
+
+  async detail(name: string): Promise<ToolRegistryEntry> {
+    return toolsApi.get<ToolRegistryEntry>(`/${encodeURIComponent(name)}/`);
+  },
+
+  async invoke(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolInvokeResponse> {
+    return toolsApi.post<ToolInvokeResponse>(
+      `/${encodeURIComponent(name)}/invoke`,
+      { args },
+    );
   },
 };
 

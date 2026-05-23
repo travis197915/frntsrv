@@ -41,6 +41,22 @@ export interface AttachedSopRule {
 
 export interface AttachedTool {
   key: string;
+  /** UUID of the agent_tools.Tool row (when sourced from the registry). */
+  tool_id?: string;
+  /** "langchain" | "api_agent" — set when sourced from the registry. */
+  tool_kind?: 'langchain' | 'api_agent';
+  /** Optional human label that differs from `name`. */
+  display_name?: string;
+  description?: string;
+  /** Pydantic JSON-Schema for the tool's input model. */
+  args_schema?: Record<string, unknown>;
+  /** Default args to prefill at invoke time. */
+  args_template?: Record<string, unknown>;
+  /** rule_key of the rule this tool was picked alongside (UI-side hint). */
+  rule_key?: string | null;
+  /** UUID of the persisted NodeRuleBinding (server fills this in). */
+  rule_binding_id?: string | null;
+
   endpoint_id: string;
   name: string;
   method: string;
@@ -876,6 +892,10 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<'rules' | 'exclusions' | 'tools'>('rules');
   const [picked, setPicked] = useState<Set<string>>(new Set(selectedKeys));
+  /** When a tool is picked while a specific rule is focused, remember the
+   *  link so we can write it into `AttachedTool.rule_key` on save. The
+   *  backend uses this to seed NodeToolBinding.rule_binding. */
+  const [pickedToolToRule, setPickedToolToRule] = useState<Map<string, string>>(new Map());
   /** Filter rules by a specific SOP. `null` = show all. */
   const [sopFilter, setSopFilter] = useState<number | null>(null);
   /** Per-row busy state when toggling an exclusion against the backend. */
@@ -1165,6 +1185,32 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
       }
       return next;
     });
+    // If we toggled a tool off, drop its rule linkage too.
+    if (key.startsWith('tool:') || key.startsWith('agent:')) {
+      setPickedToolToRule((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  /** Pick a tool AND remember which rule was focused at the time so the
+   *  NodeToolBinding gets a non-null rule_binding pointer on save. */
+  const toggleToolForRule = (toolKey: string, ruleKey: string | null) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(toolKey)) next.delete(toolKey);
+      else next.add(toolKey);
+      return next;
+    });
+    setPickedToolToRule((prev) => {
+      const next = new Map(prev);
+      if (ruleKey && picked.has(toolKey) === false) next.set(toolKey, ruleKey);
+      else if (!ruleKey) next.delete(toolKey);
+      return next;
+    });
   };
 
   const handleSave = () => {
@@ -1185,13 +1231,26 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
       }));
     const tools: AttachedTool[] = data.tool_calls
       .filter((t) => picked.has(t.key))
-      .map((t) => ({
-        key: t.key,
-        endpoint_id: t.endpoint_id,
-        name: t.name,
-        method: t.method,
-        url: t.url,
-      }));
+      .map((t) => {
+        // For each tool picked, see if the user also focused a specific
+        // rule so the binding gets a rule_binding_id once it lands in the
+        // DB (NodeToolBinding.rule_binding).
+        const linkedRule = pickedToolToRule.get(t.key) ?? null;
+        return {
+          key:             t.key,
+          tool_id:         t.tool_id,
+          tool_kind:       (t.tool_kind || t.kind) as AttachedTool['tool_kind'],
+          display_name:    t.display_name || t.name,
+          description:     t.description,
+          args_schema:     t.args_schema,
+          endpoint_id:     t.endpoint_id || '',
+          name:            t.name,
+          method:          t.method || (t.tool_kind === 'api_agent' ? 'GET' : 'POST'),
+          url:             t.url || t.invoke_url || '',
+          rule_key:        linkedRule,
+          rule_binding_id: null,
+        };
+      });
     onSave(rules, tools);
     onClose();
   };
@@ -1201,7 +1260,10 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
     [picked],
   );
   const toolCount = useMemo(
-    () => Array.from(picked).filter((k) => k.startsWith('agent:')).length,
+    () =>
+      Array.from(picked).filter(
+        (k) => k.startsWith('agent:') || k.startsWith('tool:'),
+      ).length,
     [picked],
   );
 
@@ -1776,33 +1838,82 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
           )}
 
           {data && tab === 'tools' && (
-            <div className="divide-y divide-border">
-              {filteredTools.length === 0 && (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  No runtime tools registered. Add them via the workflow context panel.
+            <div>
+              {/* Hint banner — explains the rule_binding linkage when a rule
+                  is focused in the side panel (focusedRefKey) so the user
+                  knows clicking a tool will associate it with that rule. */}
+              {focusedRefKey && ruleByKey.has(focusedRefKey) && (
+                <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-200 text-[11px] text-indigo-900 flex items-center gap-2">
+                  <Wrench className="h-3 w-3" />
+                  Tools you tick now will be linked to rule
+                  <code className="px-1 py-0.5 rounded bg-white/60 border border-indigo-200 text-[10px]">
+                    {focusedRefKey}
+                  </code>
+                  (NodeToolBinding.rule_binding) on save.
                 </div>
               )}
-              {filteredTools.map((t) => {
-                const isSelected = picked.has(t.key);
-                return (
-                  <button key={t.key} type="button" onClick={() => toggle(t.key)}
-                          className={`w-full text-left px-4 py-2 hover:bg-muted/40 transition-colors flex items-start gap-3 ${isSelected ? 'bg-blue-50/40' : ''}`}>
-                    <input type="checkbox" checked={isSelected} readOnly
-                           className="mt-0.5 h-3.5 w-3.5 rounded border-input shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                          {t.method}
-                        </span>
-                        <span className="text-xs font-medium truncate">{t.name || '(unnamed)'}</span>
+              <div className="divide-y divide-border">
+                {filteredTools.length === 0 && (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    No tools available. Wait for the agent_tools registry
+                    to seed (or attach runtime API agents via the workflow
+                    context panel).
+                  </div>
+                )}
+                {filteredTools.map((t) => {
+                  const isSelected = picked.has(t.key);
+                  const isLangchain = (t.tool_kind || t.kind) === 'langchain';
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => toggleToolForRule(
+                        t.key,
+                        focusedRefKey && ruleByKey.has(focusedRefKey)
+                          ? focusedRefKey
+                          : null,
+                      )}
+                      className={`w-full text-left px-4 py-2 hover:bg-muted/40 transition-colors flex items-start gap-3 ${isSelected ? 'bg-blue-50/40' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        readOnly
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-input shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              isLangchain
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {isLangchain ? 'LANGCHAIN' : (t.method || 'AGENT')}
+                          </span>
+                          <span className="text-xs font-medium truncate">
+                            {t.display_name || t.name || '(unnamed)'}
+                          </span>
+                          {pickedToolToRule.has(t.key) && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                              for {pickedToolToRule.get(t.key)}
+                            </span>
+                          )}
+                        </div>
+                        {t.description && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+                            {t.description}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+                          {t.invoke_url || t.url}
+                        </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
-                        {t.url}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -2020,23 +2131,11 @@ export default function NodeAttachments({
             No tools attached.
           </p>
         ) : (
-          <ul className="space-y-1.5">
-            {tools.map((t) => (
-              <li key={t.key} className="border border-border rounded p-2 bg-muted/30 flex items-center gap-2">
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                  {t.method}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium truncate">{t.name || '(unnamed)'}</p>
-                  <p className="text-[10px] text-muted-foreground font-mono truncate">{t.url}</p>
-                </div>
-                <button type="button" onClick={() => removeTool(t.key)}
-                        className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0">
-                  <X className="h-3 w-3" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <GroupedToolsList
+            tools={tools}
+            rules={rules}
+            onRemove={removeTool}
+          />
         )}
       </div>
 
@@ -2049,5 +2148,106 @@ export default function NodeAttachments({
         />
       )}
     </>
+  );
+}
+
+// ── Grouped tools list (per the plan's rule_binding grouping) ────────────────
+// Tools attached via the registry remember which rule they were picked
+// alongside (`rule_key` / `rule_binding_id`). Render them grouped under the
+// rule's section_label; orphan tools (no rule link) collapse into "Other".
+
+interface GroupedToolsListProps {
+  tools:   AttachedTool[];
+  rules:   AttachedSopRule[];
+  onRemove:(key: string) => void;
+}
+
+function GroupedToolsList({ tools, rules, onRemove }: GroupedToolsListProps) {
+  const ruleLabelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rules) {
+      m.set(r.key, r.section_label || r.key);
+    }
+    return m;
+  }, [rules]);
+
+  // Preserve insertion order of unique group keys so the list stays stable
+  // across re-renders.
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const byKey = new Map<string, AttachedTool[]>();
+    for (const t of tools) {
+      const groupKey = t.rule_key || '__other__';
+      if (!byKey.has(groupKey)) {
+        byKey.set(groupKey, []);
+        order.push(groupKey);
+      }
+      byKey.get(groupKey)!.push(t);
+    }
+    return order.map((key) => ({
+      key,
+      label:
+        key === '__other__'
+          ? 'Other'
+          : ruleLabelByKey.get(key) || `Rule ${key}`,
+      tools: byKey.get(key)!,
+    }));
+  }, [tools, ruleLabelByKey]);
+
+  return (
+    <div className="space-y-2">
+      {groups.map((group) => (
+        <div key={group.key} className="space-y-1">
+          <p
+            className={`text-[10px] uppercase tracking-wide font-semibold ${
+              group.key === '__other__'
+                ? 'text-muted-foreground'
+                : 'text-indigo-700'
+            }`}
+          >
+            {group.label}
+            <span className="ml-1.5 text-muted-foreground font-normal lowercase">
+              {group.tools.length} tool{group.tools.length === 1 ? '' : 's'}
+            </span>
+          </p>
+          <ul className="space-y-1.5">
+            {group.tools.map((t) => {
+              const isLangchain = (t.tool_kind || 'api_agent') === 'langchain';
+              return (
+                <li
+                  key={t.key}
+                  className="border border-border rounded p-2 bg-muted/30 flex items-center gap-2"
+                >
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                      isLangchain
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}
+                  >
+                    {isLangchain ? 'LC' : (t.method || 'AGENT')}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-medium truncate">
+                      {t.display_name || t.name || '(unnamed)'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate">
+                      {t.url || t.name}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(t.key)}
+                    className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
