@@ -262,6 +262,136 @@ export interface SopSectionsResponse {
   references: SopReference[];
 }
 
+// ── SOP user-curated exclusions ─────────────────────────────────────────────
+
+/** Target kinds an auditor can mark as excluded. Keys match the stable keys
+ *  emitted by `/api/builder/workflows/<id>/attachable/`. */
+export type SopExclusionTargetKind =
+  | 'rule'        // "pre:<sop>:<pc>:<idx>" or "step:<sop>:<step>:<row>"
+  | 'step'        // "step:<sop>:<step_no>"        — fan-out to all rows
+  | 'section'     // "pre:<sop>:<precondition_id>" — fan-out to all rules
+  | 'sop'         // "sop:<sop>"
+  | 'graph_node'  // raw AuditGraphNode.node_key
+  | 'html_block'; // "html:<sop>:html-<sha>" — raw HTML section
+
+export interface SopExclusion {
+  id: number;
+  sop_id: number;
+  target_kind: SopExclusionTargetKind;
+  target_key:  string;
+  label:       string;
+  reason:      string;
+  snippet_text: string;
+  metadata:    Record<string, unknown>;
+  created_by_id:    string;
+  created_by_email: string;
+  created_at:  string | null;
+  updated_at:  string | null;
+}
+
+export interface SopExclusionListResponse {
+  sop_id: number;
+  count:  number;
+  results: SopExclusion[];
+}
+
+export interface SopExclusionToggleResponse {
+  sop_id: number;
+  target_kind: SopExclusionTargetKind;
+  target_key:  string;
+  excluded:    boolean;
+  exclusion?:  SopExclusion;
+}
+
+export interface SopExclusionUpsertInput {
+  target_kind: SopExclusionTargetKind;
+  target_key:  string;
+  label?:      string;
+  reason?:     string;
+  snippet_text?: string;
+  metadata?:   Record<string, unknown>;
+}
+
+// ── SOP HTML section blocks (selectable raw-HTML chunks) ────────────────────
+
+export interface SopHtmlBlock {
+  block_id:     string;                    // "html-abc123…"
+  kind:         'heading' | 'table' | 'list' | 'paragraph' | 'callout' | 'code' | 'metadata' | string;
+  tag:          string;                    // "h2" | "table" | …
+  label:        string;
+  html:         string;                    // pre-rendered HTML fragment
+  text:         string;
+  depth:        number;
+  order:        number;
+  target_kind:  'html_block';
+  target_key:   string;                    // "html:<sop>:<block_id>"
+  is_excluded:  boolean;
+  exclusion_id: number | null;
+}
+
+export interface SopHtmlBlocksResponse {
+  sop_id:     number;
+  source_url: string;
+  doc_format: string;
+  count:      number;
+  blocks:     SopHtmlBlock[];
+}
+
+/** Sanitized source HTML for click-to-pick exclusion mode. */
+export interface SopSourceHtmlResponse {
+  sop_id:     number;
+  doc_format: string;
+  source_url: string;
+  available:  boolean;
+  html:       string;     // body innerHTML; safe to mount via dangerouslySetInnerHTML
+  reason:     string;     // populated when available === false
+  excluded_target_keys: string[];   // already-excluded html_block target_keys
+}
+
+/** Per-SOP exclusion client. Backed by `/api/ingest/sops/<sop_id>/exclusions/`.
+ *  No LLM: rule keys are the same stable keys the rule picker already knows. */
+export const sopExclusionsApi = {
+  list(sopId: number): Promise<SopExclusionListResponse> {
+    return ingestApi.get<SopExclusionListResponse>(`/sops/${sopId}/exclusions/`);
+  },
+  upsert(sopId: number, input: SopExclusionUpsertInput): Promise<SopExclusion> {
+    return ingestApi.post<SopExclusion>(`/sops/${sopId}/exclusions/`, input);
+  },
+  toggle(
+    sopId: number,
+    input: SopExclusionUpsertInput & { on?: boolean },
+  ): Promise<SopExclusionToggleResponse> {
+    return ingestApi.post<SopExclusionToggleResponse>(
+      `/sops/${sopId}/exclusions/toggle/`, input,
+    );
+  },
+  remove(sopId: number, exclusionId: number): Promise<void> {
+    return ingestApi.delete<void>(`/sops/${sopId}/exclusions/${exclusionId}/`);
+  },
+  /** Server-extracted HTML sections of the SOP (headings, tables, lists,
+   *  paragraphs, callouts). Each block is content-hashed so the id is
+   *  stable across re-fetches. */
+  listHtmlBlocks(sopId: number): Promise<SopHtmlBlocksResponse> {
+    return ingestApi.get<SopHtmlBlocksResponse>(`/sops/${sopId}/html-blocks/`);
+  },
+  /** Sanitized source HTML for click-to-pick exclusion mode (Available
+   *  only for HTTP-served SOPs). */
+  getSourceHtml(sopId: number): Promise<SopSourceHtmlResponse> {
+    return ingestApi.get<SopSourceHtmlResponse>(`/sops/${sopId}/source-html/`);
+  },
+};
+
+/** SHA-1(input).slice(0, 12) → matches Python ``block_id_for_html`` so the
+ *  same HTML fragment maps to the same exclusion target_key on both sides. */
+export async function htmlBlockId(html: string): Promise<string> {
+  const bytes = new TextEncoder().encode(html ?? '');
+  const digest = await crypto.subtle.digest('SHA-1', bytes);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `html-${hex.slice(0, 12)}`;
+}
+
 // ── Identity types (Node corebackend) ───────────────────────────────────────
 
 export interface CorebackendUser {

@@ -27,6 +27,17 @@ import {
 
 // ── Attachable rules + tools (per workflow, for per-node attachments) ──────
 
+/** Source-of-truth reference block for a rule/exclusion — lets the SPA
+ *  render the original document context (HTML iframe / text panel). */
+export interface AttachableHtmlReference {
+  source_url:    string;
+  doc_format:    string;            // "HTML" | "DOCX" | "PDF" | "XLSX" | …
+  anchor:        string;
+  section_label: string;
+  snippet_text:  string;
+  snippet_html:  string;
+}
+
 export interface AttachableSopRule {
   key: string;             // e.g. "pre:22:1:0" / "step:22:0:3"
   sop_id: number;
@@ -41,18 +52,30 @@ export interface AttachableSopRule {
   action: string;
   decision_type: string;
   is_exception: boolean;
+  /** True when this rule is itself an exclusion (LLM-flagged or user-marked). */
+  is_exclusion?: boolean;
+  /** "rule" | "decision" | "exclusion" | "exception". */
+  rule_kind?: string;
   is_blocking: boolean;
   codes: string[];
   /** Keys of rules this rule depends on (e.g. all sibling rows of a `goto_step`). */
   references: string[];
   /** Target step number if this row jumps to another step. */
   goto_step: number | null;
+  /** Stable knowledge-graph node id (e.g. "step_4_d0", "pre_3_r5"). */
+  graph_node_key?: string;
+  /** Keys of exclusions (LLM or user) that override this rule. */
+  excluded_by?: string[];
+  /** Source-of-truth reference block (original document context). */
+  html_reference?: AttachableHtmlReference;
 }
 
 export interface AttachableSopSummary {
   sop_id: number;
   title: string;
   narrative: string;
+  source_url?: string;
+  doc_format?: string;
 }
 
 export interface AttachableTool {
@@ -65,9 +88,37 @@ export interface AttachableTool {
   auth_type?: string;
 }
 
+export interface AttachableExclusion {
+  key: string;                      // "pre:22:88:0" (LLM) or "user-excl:42" (user)
+  /** Backend row id when source === "user". */
+  id?: number;
+  sop_id: number;
+  sop_title: string;
+  /** "llm" (derived from is_exception / OVERRIDES edge) or "user" (auditor-picked). */
+  source?: 'llm' | 'user';
+  /** Only for user exclusions — kind & key of the excluded target. */
+  target_kind?: 'rule' | 'step' | 'section' | 'sop' | 'graph_node' | 'html_block';
+  target_key?:  string;
+  section_label: string;
+  category: string;
+  label: string;
+  reason?: string;
+  condition: string;
+  action: string;
+  decision_type: string;
+  rule_kind: string;
+  graph_node_key: string;
+  /** Rule keys this exclusion neutralises (fan-out resolved by backend). */
+  overrides_rule_keys: string[];
+  created_by?: string;
+  created_at?: string;
+  html_reference: AttachableHtmlReference;
+}
+
 export interface WorkflowAttachable {
   sops?: AttachableSopSummary[];
   sop_rules: AttachableSopRule[];
+  exclusions?: AttachableExclusion[];
   tool_calls: AttachableTool[];
 }
 
