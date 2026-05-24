@@ -6,13 +6,13 @@ import Loader from '@/components/Loader';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   workflowsApi,
   type RuntimeAgentInput,
   type WorkflowSummary,
-} from '@/lib/workflowsApi';
+} from '@/lib/api';
 import WorkflowCard from './components/WorkflowCard';
 import CreateWorkflowDialog from './components/CreateWorkflowDialog';
 

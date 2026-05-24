@@ -6,16 +6,16 @@ A React SPA for managing AI-driven claims workflows, agents, and run activity. A
 
 ## Tech Stack
 
-| Layer           | Technology                                                        |
-| --------------- | ----------------------------------------------------------------- |
-| Framework       | React 19 + TypeScript                                             |
-| Build           | Vite 7 (`@vitejs/plugin-react`)                                   |
-| Styling         | Tailwind CSS 4 + shadcn/ui (New York variant, Radix primitives)   |
-| Data            | Apollo Client 4 → GraphQL (`apollo-upload-client` for file uploads) |
-| Routing         | React Router DOM 7                                                |
-| Canvas          | React Flow (`@xyflow/react`) for the workflow node editor         |
-| Icons           | lucide-react                                                      |
-| Package Manager | Yarn                                                              |
+| Layer           | Technology                                                      |
+| --------------- | --------------------------------------------------------------- |
+| Framework       | React 19 + TypeScript                                           |
+| Build           | Vite 7 (`@vitejs/plugin-react`)                                 |
+| Styling         | Tailwind CSS 4 + shadcn/ui (New York variant, Radix primitives) |
+| Data            | TanStack Query 5 + native `fetch` via `@/lib/apiClient`           |
+| Routing         | React Router DOM 7                                              |
+| Canvas          | React Flow (`@xyflow/react`) for the workflow node editor       |
+| Icons           | lucide-react                                                    |
+| Package Manager | Yarn                                                            |
 
 ---
 
@@ -25,28 +25,42 @@ A React SPA for managing AI-driven claims workflows, agents, and run activity. A
 yarn install
 yarn dev          # http://localhost:5173
 yarn build        # production build → dist/
-yarn codegen      # regenerate GraphQL types from schema
+yarn compile      # tsc -b (typecheck only)
 ```
 
-Set `VITE_GRAPHQL_BACKEND_URL` in `.env` to point at the Node.js GraphQL relay.
+Set `VITE_API_BASE_URL` in `.env` to point at the Node relay (`claims-corebackend`, default `http://localhost:4000`).
 
 ---
 
 ## Backend Architecture
 
-The frontend never calls Django directly. Requests flow through a Node.js GraphQL relay:
+The frontend never calls Django directly. All REST traffic goes through the Node relay:
 
 ```
-React (Apollo Client)
-      │  GraphQL over HTTP (apollo-upload-client for files)
+React (fetch + TanStack Query)
+      │  REST + JWT Bearer
       ▼
-Node.js GraphQL Relay  (claims-node-backend)
-      │  HTTP + multipart (axios + form-data)
+Node relay  (claims-corebackend, port 4000)
+      │  Identity: Prisma + JWT minting  (/auth/*, /api/users/*)
+      │  BFF:      orchestration         (/api/dashboard/stats)
+      │  Proxy:    forward with JWT      (/api/builder/*, /api/ingest/*, …)
       ▼
-Django REST API  (claims-backend, port 8000)
+Django REST API  (uhc-agentic-backend / sop_backend, port 8000)
 ```
 
-Authentication: The Node backend mints HS256 JWTs; every Django request carries `Authorization: Bearer <jwt>`.
+Authentication: the Node relay mints HS256 JWTs; every proxied Django request carries `Authorization: Bearer <jwt>` (both services share `JWT_SECRET`).
+
+---
+
+## Environment
+
+| Variable            | Used by                                                         | Default               |
+| ------------------- | --------------------------------------------------------------- | --------------------- |
+| `VITE_API_BASE_URL` | All REST — auth, users, proxied Django routes                   | `http://localhost:4000` |
+| `VITE_CLIENT_NAME`  | Brand string in the chrome                                      | `United Health Care`  |
+| `VITE_CLIENT_LOGO`  | Optional logo URL in sidebar                                    | —                     |
+
+Subpaths are appended to `VITE_API_BASE_URL` by the client factory — e.g. `/api/builder`, `/api/ingest`, `/api/users`.
 
 ---
 
@@ -54,95 +68,114 @@ Authentication: The Node backend mints HS256 JWTs; every Django request carries 
 
 ```
 src/
-├── main.tsx                        # Entry — Apollo (UploadHttpLink) + Auth + Theme providers
+├── main.tsx                        # Entry — QueryClient + Auth + Theme + Router
 │
-├── routes/                         # All route-level page components (no separate pages/ dir)
-│   ├── index.tsx                   # AppRoutes — route definitions
-│   ├── login/index.tsx             # Login page (Wipro branding)
-│   ├── dashboard/index.tsx         # Dashboard: stats + recent runs (API-driven)
+├── routes/                         # Route-level page components (no pages/ dir)
+│   ├── index.tsx                   # AppRoutes
+│   ├── login/index.tsx             # Login (Wipro branding)
+│   ├── unauthorized/               # Role-mismatch landing
+│   ├── dashboard/index.tsx         # Stats + recent runs
 │   │
-│   ├── workflows/                  # Workflow management
-│   │   ├── index.tsx               # Workflow list page
-│   │   ├── [id]/index.tsx          # Workflow builder (React Flow canvas + live execution)
-│   │   ├── types.ts                # WorkflowNode, WorkflowEdge, WorkflowNodeData types
+│   ├── workflows/
+│   │   ├── index.tsx               # Workflow list
+│   │   ├── [id]/index.tsx          # Builder canvas + execution shell
+│   │   ├── types.ts                # Canvas types
+│   │   ├── workflowCanvasUtils.ts  # Layout + edge routing
 │   │   ├── hooks/
-│   │   │   ├── useWorkflowCanvas.ts      # React Flow state management (nodes, edges, drag)
-│   │   │   └── useWorkflowUiColors.ts    # Theme-aware canvas colors
+│   │   │   ├── useWorkflowCanvas.ts
+│   │   │   └── useWorkflowUiColors.ts
 │   │   ├── components/
-│   │   │   ├── nodes/              # BaseNode + specialised node renderers + nodeTypes map
-│   │   │   ├── edges/AnimatedEdge.tsx    # Animated connection edge
-│   │   │   ├── NodePalette.tsx     # Left drag palette (disables step nodes without workarea)
-│   │   │   ├── WorkflowCard.tsx    # Card on the list page
-│   │   │   └── ConfigPanel.tsx     # Right-side node config (agent dropdown uses LIST_AGENTS_QUERY)
+│   │   │   ├── nodes/              # DynamicShapeNode, WorkAreaNode, nodeTypes
+│   │   │   ├── NodePalette.tsx     # Catalog-driven drag palette
+│   │   │   ├── ConfigPanel.tsx     # Inspector from ShapeDefinition.property_schema
+│   │   │   ├── WorkflowCard.tsx    # List card (shape-count pills when config present)
+│   │   │   ├── CreateWorkflowDialog.tsx
+│   │   │   ├── WorkflowContextPanel.tsx
+│   │   │   ├── NodeAttachments.tsx
+│   │   │   ├── SopGraphDialog.tsx / SopGraphCanvas.tsx / SopSectionsPanel.tsx
+│   │   │   └── ToolRegistryList.tsx / ToolInvokeModal.tsx
 │   │   └── execution/
-│   │       ├── useWorkflowExecution.ts   # Live execution hook (start → step → advance loop)
-│   │       ├── ExecutionPanel.tsx        # Right-panel step log + input forms
-│   │       ├── ExecutionToolbar.tsx      # Floating status bar + cancel button
-│   │       ├── ExecutionOverlay.tsx      # Canvas overlay (disabled in live mode)
-│   │       └── types.ts                 # NodeExecutionState, EdgeExecutionStatus, InteractionType
+│   │       ├── useWorkflowExecution.ts   # Stub — backend execution pending
+│   │       ├── ExecutionPanel.tsx
+│   │       ├── ExecutionToolbar.tsx
+│   │       └── types.ts
 │   │
 │   ├── agents/                     # Agent registry
-│   │   ├── index.tsx               # Agent list (fetched via LIST_AGENTS_QUERY)
-│   │   └── [id]/index.tsx          # Agent detail page
-│   │
-│   ├── activity/                   # Workflow run history
-│   │   ├── index.tsx               # Run list (LIST_TRANSACTIONS_QUERY → /api/runs/)
-│   │   └── [id]/index.tsx          # Run detail / execution trace
-│   │
-│   ├── ai-usage/                   # AI token usage (hardcoded mock data — no backend yet)
-│   │   ├── index.tsx
-│   │   └── demoData.ts
-│   │
-│   └── settings/index.tsx          # License upload + user management
+│   ├── activity/                   # Run history
+│   ├── ai-usage/                   # Token usage (mock data — no backend yet)
+│   ├── settings/                   # Password + user management
+│   ├── users/                      # Admin user list + detail
+│   └── profile/                    # Current-user profile
 │
-├── components/                     # Shared UI components
-│   ├── ui/                         # shadcn/ui primitives
-│   ├── Sidebar/                    # SidebarLayout + nav items
-│   ├── StatusBadge.tsx
-│   ├── EmptyState.tsx
-│   ├── ErrorAlert.tsx
-│   ├── Loader.tsx
-│   └── ProtectedRoute.tsx
+├── layouts/
+│   └── SidebarLayout.tsx           # App shell; nav driven by /ui/navigation/
 │
-├── graphql/                        # GraphQL operation definitions
-│   ├── agent.graphql.ts            # LIST_AGENTS_QUERY, GET_AGENT_QUERY, LIST_COMBO_TEMPLATES_QUERY
-│   ├── auth.graphql.ts
-│   ├── dashboard.graphql.ts        # DASHBOARD_STATS_QUERY
-│   ├── license.graphql.ts          # LICENSE_STATUS_QUERY
-│   ├── transaction.graphql.ts      # LIST_TRANSACTIONS_QUERY, GET_TRANSACTION_QUERY
-│   └── workflow.graphql.ts         # CRUD + execution mutations (StartRun, StartStep, AdvanceRun,
-│                                   #   UploadRunFile, SubmitPreflight)
-│
-├── __generated__/                  # Auto-generated by graphql-codegen (do not edit)
+├── components/                     # Shared UI (ui/, Sidebar/, Loader, …)
 │
 ├── contexts/
-│   └── AuthContext.tsx             # AuthProvider, useAuth hook
+│   └── AuthContext.tsx             # AuthProvider — login via authApi (Node)
 │
-├── lib/
-│   ├── theme.tsx                   # ThemeProvider + useTheme (dark/light)
-│   ├── utils.ts                    # cn() — Tailwind class merger
-│   └── staticPages.ts             # Legacy flag file (no longer used for data gating)
+├── interfaces/                     # Domain types (preferred)
+│   ├── builder.ts                  # Catalog + Django graph types
+│   ├── workflows.ts                # SPA workflow shapes + attachable rules
+│   ├── sop.ts                      # SOP graph + exclusion types
+│   └── identity.ts                 # Auth/user types from Node
+│
+├── lib/                            # Data layer
+│   ├── api.ts                      # Public facade — import from here in routes
+│   ├── apiClient.ts                # makeClient() factory + ApiError
+│   ├── clients.ts                  # Singleton HTTP clients (relay, builder, …)
+│   ├── workflowsApi.ts             # Builder graph ↔ xyflow adapter + CRUD
+│   ├── catalogApi.ts               # Catalog hooks + /ui/* fetchers
+│   └── staticPages.ts              # Legacy flag (unused)
 │
 └── utils/
-    └── auth.ts                     # getToken, setToken, clearAuth, getAuthorizationHeader
+    ├── auth.ts                     # Token storage, decodeJwtPayload
+    ├── user.ts                     # User, isAdmin, getRoleLabel
+    ├── theme.tsx                   # ThemeProvider + useTheme
+    ├── utils.ts                    # cn() — clsx + tailwind-merge
+    ├── query-pagination.ts         # Cursor pagination helpers for useQuery
+    └── debounce.ts, compare-values.ts, …
 ```
+
+---
+
+## HTTP Clients
+
+Defined in `src/lib/clients.ts`, re-exported from `@/lib/api`:
+
+| Export          | Base path           | Backend                         |
+| --------------- | ------------------- | ------------------------------- |
+| `authApi`       | `` (relay root)     | Node — `/auth/*`                |
+| `usersApi`      | `/api/users`        | Node — user CRUD                |
+| `api`           | `/api/builder`      | Django builder (proxied)        |
+| `ingestApi`     | `/api/ingest`       | Django SOP ingestion (proxied)  |
+| `toolsApi`      | `/api/agent-tools`  | Django tool registry (proxied)  |
+| `apiClient`     | `/api`              | Mixed — dashboard, agents, runs |
+
+Every client attaches `Authorization: Bearer <jwt>` and redirects to `/login` on 401.
+
+**Import convention:** routes and components should import clients, types, and adapters from `@/lib/api`. Avoid reaching into `@/lib/clients` or `@/lib/workflowsApi` directly unless you are editing the lib layer itself.
 
 ---
 
 ## Routing Map
 
-| Path              | Component            | Key GraphQL Operations                                    |
-| ----------------- | -------------------- | --------------------------------------------------------- |
-| `/login`          | Login                | `login` mutation                                          |
-| `/`               | Dashboard            | `dashboardStats`, `licenseStatus`, `transactions`         |
-| `/workflows`      | Workflow list        | `workflows`, `deleteWorkflow`                             |
-| `/workflows/:id`  | Workflow builder     | `workflow`, `updateWorkflow`, `startRun`, `startStep`, `advanceRun`, `uploadRunFile`, `submitPreflight` |
-| `/agents`         | Agent list           | `agents`                                                  |
-| `/agents/:id`     | Agent detail         | `agent`                                                   |
-| `/activity`       | Activity / run list  | `transactions`                                            |
-| `/activity/:id`   | Run trace            | `transaction`                                             |
-| `/ai-usage`       | AI usage dashboard   | — (hardcoded data)                                        |
-| `/settings`       | Settings             | `licenseStatus`, auth mutations                           |
+| Path              | Component            | Data source                                              |
+| ----------------- | -------------------- | -------------------------------------------------------- |
+| `/login`          | Login                | `authApi.post('/auth/login')`                            |
+| `/dashboard`      | Dashboard            | `GET /api/dashboard/stats`, `GET /api/runs/?limit=5`     |
+| `/workflows`      | Workflow list        | `workflowsApi.list()` → `GET /api/builder/workflows/`    |
+| `/workflows/:id`  | Workflow builder     | `workflowsApi.get/update()` → graph + attachable         |
+| `/agents`         | Agent list           | `GET /api/agents/`                                       |
+| `/agents/:id`     | Agent detail         | `GET /api/agents/` (filtered client-side)                |
+| `/activity`       | Run list             | `GET /api/runs/`                                         |
+| `/activity/:runId`| Run trace            | `GET /api/runs/{id}/`                                    |
+| `/ai-usage`       | AI usage             | Hardcoded demo data                                      |
+| `/settings`       | Settings             | JWT license decode + `usersApi`                          |
+| `/users`          | User admin           | `usersApi`                                               |
+
+Pages call `useQuery` / `useMutation` inline — there are no separate query-hook wrapper modules.
 
 ---
 
@@ -150,93 +183,87 @@ src/
 
 ### Node Types
 
-| Canvas `nodeType`  | Django `executor_type` | Notes                                      |
-| ------------------ | ---------------------- | ------------------------------------------ |
-| `workarea`         | `workarea`             | Grouping container, not executed           |
-| `trigger`          | `trigger`              | Entry point, may block for user input      |
-| `agent_combo`      | `agent_combo`          | Runs a combo template; configured via `combo_id` |
-| `claim_preflight`  | `claim_preflight`      | Blocks until Excel + PDF + claim ID uploaded |
-| `output`           | `output`               | Terminal node                              |
+The canvas uses **catalog-driven shapes**, not hardcoded executor types:
 
-Step nodes (non-workarea) cannot be dragged onto the canvas unless a `workarea` node already exists — the palette disables them with a tooltip otherwise.
+| Canvas `nodeType` | Renderer            | Notes                                           |
+| ----------------- | ------------------- | ----------------------------------------------- |
+| `shape`           | `DynamicShapeNode`  | Looks up `data.definitionSlug` in the catalog   |
+| `workarea`        | `WorkAreaNode`      | Grouping container (Django work-area hierarchy) |
 
-### Live Execution Flow (`useWorkflowExecution`)
+Palette tiles, SVG paths, ports, and inspector fields all come from `GET /api/builder/catalog/categories/`. Nothing about node appearance is hardcoded in the SPA.
+
+### Django Graph ↔ xyflow Adapter
+
+`workflowsApi.ts` translates between Django's nested graph and flat xyflow lists:
 
 ```
-startLiveExecution(workflowId)
-  │
-  ├─ startRun mutation  →  POST /api/workflows/{id}/runs/
-  │     returns { id, currentWorkbench }
-  │
-  └─ loop per workbench:
-       ├─ startStep mutation  →  POST /api/runs/{id}/steps/{wb_id}/start/
-       │     if awaitingInput + TRIGGER:
-       │       wait for user text → re-call startStep with input
-       │     if awaitingInput + CLAIM_PREFLIGHT:
-       │       wait for PreflightInput { excelFile, pdfFile, claimId }
-       │       uploadRunFile(claim_excel_url)  →  POST /api/runs/{id}/upload/
-       │       uploadRunFile(claim_pdf_url)    →  POST /api/runs/{id}/upload/
-       │       submitPreflight(claimId)        →  POST /api/runs/{id}/preflight/
-       │
-       └─ advanceRun mutation  →  POST /api/runs/{id}/advance/
-             if done → mark completed
-             else    → next iteration with nextWorkbench
+Django                          SPA (xyflow)
+work_areas                      nodes[] (type: "shape" | "workarea")
+  └ workbenches                   data.definitionSlug, data.properties
+      └ shapes                    position, style
+connections                     edges[]
 ```
 
-The hook exposes: `startLiveExecution`, `cancel`, `reset`, `submitInteraction` (text input), `submitPreflightInput` (file upload).
+- **Read:** `GET /workflows/{id}/graph/` → flatten to nodes/edges
+- **Write:** `PUT /workflows/{id}/graph/` ← buildGraphPayload from canvas state
 
-### Agent Combo Configuration
+### Attachments
 
-`agent_combo` nodes use a `combo_id` referencing a server-side combo template. The `ConfigPanel` fetches available individual agents via `LIST_AGENTS_QUERY` and stores the selected agent's `name` as both `agentType` and `combo_id` in node data.
+Per-shape SOP rules and tool bindings live in `Shape.properties`, hydrated by Django from binding tables. The attachable picker reads `GET /workflows/{id}/attachable/`.
+
+### Live Execution
+
+`useWorkflowExecution` is currently **stubbed** — it sets status `failed` with a "backend pending" message. Proxy routes for runs exist in the Node relay; wire the hook once Django execution endpoints are ready.
 
 ---
 
-## GraphQL Operations
+## REST Endpoints (via Node relay)
 
-### Workflows (`workflow.graphql.ts`)
+### Auth & Users (Node-owned)
 
-| Operation              | Type     | Django endpoint                              |
-| ---------------------- | -------- | -------------------------------------------- |
-| `ListWorkflows`        | Query    | `GET /api/workflows/`                        |
-| `GetWorkflow`          | Query    | `GET /api/workflows/{id}/`                   |
-| `GetWorkflowRuns`      | Query    | `GET /api/workflows/{id}/runs-list/`         |
-| `GetWorkflowRun`       | Query    | `GET /api/runs/{id}/`                        |
-| `CreateWorkflow`       | Mutation | `POST /api/workflows/`                       |
-| `UpdateWorkflow`       | Mutation | `PUT /api/workflows/{id}/`                   |
-| `DeleteWorkflow`       | Mutation | `DELETE /api/workflows/{id}/`                |
-| `StartRun`             | Mutation | `POST /api/workflows/{id}/runs/`             |
-| `StartStep`            | Mutation | `POST /api/runs/{id}/steps/{wb_id}/start/`   |
-| `AdvanceRun`           | Mutation | `POST /api/runs/{id}/advance/`               |
-| `UploadRunFile`        | Mutation | `POST /api/runs/{id}/upload/`  (multipart)   |
-| `SubmitPreflight`      | Mutation | `POST /api/runs/{id}/preflight/`             |
+| Method | Path                      | Notes                    |
+| ------ | ------------------------- | ------------------------ |
+| POST   | `/auth/register`          | First user → ADMIN       |
+| POST   | `/auth/login`             | Returns JWT              |
+| GET    | `/auth/me`                | Current user             |
+| POST   | `/auth/change-password`   |                          |
+| GET    | `/api/users/`             | Admin user list          |
+| POST   | `/api/users/`             | Create user              |
 
-### Agents (`agent.graphql.ts`)
+### Builder (Django, proxied at `/api/builder`)
 
-| Operation              | Type  | Django endpoint              |
-| ---------------------- | ----- | ---------------------------- |
-| `ListAgents`           | Query | `GET /api/agents/`           |
-| `GetAgent`             | Query | `GET /api/agents/` (filtered)|
-| `ListComboTemplates`   | Query | `GET /api/combo-templates/`  |
+| Method | Path                              | Used by                    |
+| ------ | --------------------------------- | -------------------------- |
+| GET    | `/workflows/`                     | Workflow list              |
+| POST   | `/workflows/`                     | Create                     |
+| GET    | `/workflows/{id}/graph/`          | Load canvas                |
+| PUT    | `/workflows/{id}/graph/`          | Save canvas                |
+| GET    | `/workflows/{id}/attachable/`     | SOP rules + tools picker   |
+| POST   | `/workflows/{id}/attach/`         | Link SOPs + runtime agents |
+| POST   | `/workflows/{id}/duplicate/`      | Duplicate                  |
+| DELETE | `/workflows/{id}/`                | Delete                     |
+| GET    | `/catalog/categories/`            | Node palette               |
+| GET    | `/catalog/shapes/`                | Flat shape list            |
+| GET    | `/ui/navigation/`                 | Sidebar (server-driven)    |
+| GET    | `/ui/dashboard/`                  | Dashboard widget defs      |
 
-### Activity (`transaction.graphql.ts`)
+### Orchestration (Node BFF)
 
-| Operation            | Type  | Django endpoint       |
-| -------------------- | ----- | --------------------- |
-| `ListTransactions`   | Query | `GET /api/runs/`      |
-| `GetTransaction`     | Query | `GET /api/runs/{id}/` |
+| Method | Path                    | Notes                                      |
+| ------ | ----------------------- | ------------------------------------------ |
+| GET    | `/api/dashboard/stats`  | Aggregates agents + workflows from Django  |
 
-### Other
+### Runs & Agents (Django, proxied at `/api`)
 
-| Operation          | File                    | Notes                                        |
-| ------------------ | ----------------------- | -------------------------------------------- |
-| `DashboardStats`   | `dashboard.graphql.ts`  | Aggregates agents + workflows + runs counts  |
-| `LicenseStatus`    | `license.graphql.ts`    | Read from JWT payload, no Django call        |
+| Method | Path                | Used by              |
+| ------ | ------------------- | -------------------- |
+| GET    | `/agents/`          | Agent registry       |
+| GET    | `/runs/`            | Activity list        |
+| GET    | `/runs/{id}/`       | Run detail           |
 
-Regenerate types after schema changes:
+### SOP Ingestion (Django, proxied at `/api/ingest`)
 
-```bash
-yarn codegen
-```
+Exclusion CRUD and HTML-block helpers are exposed via `sopExclusionsApi` in `@/lib/api`.
 
 ---
 
@@ -245,14 +272,10 @@ yarn codegen
 ### Adding a New Page
 
 1. Create `src/routes/<domain>/index.tsx`
-2. Add GraphQL operations in `src/graphql/<domain>.graphql.ts`
-3. Run `yarn codegen`
+2. Add types to `src/interfaces/` if needed
+3. Call `useQuery` / `useMutation` with a client from `@/lib/api`
 4. Register the route in `src/routes/index.tsx`
-5. Add a sidebar link in the relevant `Sidebar` component
-
-### File Uploads
-
-Apollo Client is configured with `UploadHttpLink` from `apollo-upload-client`. Any mutation that accepts a `Upload!` scalar argument will automatically be sent as a multipart request — no extra configuration needed on the component side.
+5. Add a sidebar entry in Django catalog seed (`/ui/navigation/`) or hardcode if temporary
 
 ### Adding a shadcn/ui Component
 
@@ -264,12 +287,17 @@ Components land in `src/components/ui/`.
 
 ### Theme
 
-Dark/light mode via `ThemeProvider` (`src/lib/theme.tsx`). Toggle with `ThemeToggleButton`. Persisted to `localStorage`.
+Dark/light mode via `ThemeProvider` (`src/utils/theme.tsx`). Toggle with `ThemeToggleButton`. Persisted to `localStorage`.
 
-### What is NOT yet integrated (backend APIs exist but no frontend wiring)
+### License Status
 
-- `GET /api/runs/{id}/steps/` — per-run step log (currently embedded in run detail)
-- `GET /api/runs/{id}/steps/{wb_run_id}/detail/` — full I/O snapshot per step
+Read from the JWT payload via `decodeJwtPayload()` in `@/utils/auth` — no separate license API call.
+
+### What is NOT yet integrated
+
+- **Workflow live execution** — hook stubbed; Django run/step/advance endpoints pending
+- `GET /api/runs/{id}/steps/` — per-run step log
 - `GET /api/runs/{id}/agent-logs/` — merged agent execution logs
-- `GET /api/runs/{id}/result/` — final outcome context dict
-- Agent Prompts CRUD (`/api/agent-prompts/`, `/api/workbench-agents/{id}/set-prompt/`)
+- `GET /api/runs/{id}/result/` — final outcome context
+- Agent Prompts CRUD (`/api/agent-prompts/`)
+- Workflow list shape summaries — `WorkflowCard` supports a `config` field but the Node BFF enrichment is not wired yet

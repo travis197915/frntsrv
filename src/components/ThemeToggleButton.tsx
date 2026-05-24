@@ -1,4 +1,4 @@
-import { useTheme, type Theme } from '@/lib/theme';
+import { useTheme, type Theme } from '@/utils/theme';
 
 const CYCLE: Theme[] = ['light', 'dark', 'system'];
 

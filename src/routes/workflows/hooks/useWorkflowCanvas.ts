@@ -16,7 +16,6 @@ import type {
   WorkflowCanvasJSON,
   WorkflowMeta,
 } from '../types';
-import { NODE_TYPE_CONFIG } from '../types';
 import type { ShapeDefinition } from '@/lib/api';
 
 let idCounter = 0;
@@ -208,7 +207,7 @@ export function useWorkflowCanvas(
       version: 1,
       nodes: nodes.map((n) => ({
         id: n.id,
-        type: (n.type as WorkflowNodeType) ?? 'action',
+        type: (n.type as WorkflowNodeType) ?? 'shape',
         position: n.position,
         data: n.data as WorkflowNodeData,
         ...(n.parentId ? { parentId: n.parentId, extent: 'parent' as const } : {}),
@@ -380,18 +379,8 @@ export function useWorkflowCanvas(
         return;
       }
 
-      // ── Legacy hardcoded enum payloads (still used by the "Work Area"
-      //    tile, which the catalog doesn't model yet) ──────────────────────
-      const nodeType = payload as WorkflowNodeType;
-      if (!NODE_TYPE_CONFIG[nodeType]) return;
-
-      if (nodeType !== 'workarea') {
-        const hasWorkArea = nodes.some((n) => n.type === 'workarea');
-        if (!hasWorkArea) return;
-      }
-
-      // Work areas are always top-level — never nested
-      if (nodeType === 'workarea') {
+      // ── Work Area drop (not modelled as a catalog shape) ─────────────────
+      if (payload === 'workarea') {
         const WA_WIDTH = 540;
         const WA_HEIGHT = 360;
         const waId = nextId();
@@ -404,7 +393,6 @@ export function useWorkflowCanvas(
           data: { label: 'Work Area', nodeType: 'workarea' },
         };
 
-        // Wrap any existing top-level nodes whose center falls within the new work area bounds
         setNodes((nds) => {
           const enclosed = nds.filter((n) => {
             if (n.type === 'workarea' || n.parentId) return false;
@@ -423,14 +411,13 @@ export function useWorkflowCanvas(
           const enclosedIds = new Set(enclosed.map((n) => n.id));
 
           return [
-            newWorkArea, // parent must come first in the array
+            newWorkArea,
             ...nds.map((n) => {
               if (!enclosedIds.has(n.id)) return n;
               return {
                 ...n,
                 parentId: waId,
                 extent: 'parent' as const,
-                // Convert absolute position → relative to work area
                 position: {
                   x: n.position.x - position.x,
                   y: n.position.y - position.y,
@@ -443,60 +430,6 @@ export function useWorkflowCanvas(
         setIsDirty(true);
         return;
       }
-
-      // Check if the drop lands inside an existing work area
-      const workAreaParent = nodes.find((n) => {
-        if (n.type !== 'workarea') return false;
-        const w = typeof n.style?.width === 'number' ? n.style.width : 540;
-        const h = typeof n.style?.height === 'number' ? n.style.height : 360;
-        // 36px header offset (in flow units at zoom=1) keeps children out of the title bar
-        return (
-          position.x >= n.position.x &&
-          position.x <= n.position.x + w &&
-          position.y >= n.position.y + 36 &&
-          position.y <= n.position.y + h
-        );
-      });
-
-      // When dropped inside a work area, center horizontally and stack below existing children
-      const defaultPosition = workAreaParent
-        ? (() => {
-            const NODE_WIDTH = 220;
-            const HEADER_H = 36;
-            const GAP = 20;
-            const waWidth =
-              typeof workAreaParent.style?.width === 'number'
-                ? workAreaParent.style.width
-                : 540;
-
-            const centeredX = Math.round((waWidth - NODE_WIDTH) / 2);
-
-            const siblings = nodes.filter((n) => n.parentId === workAreaParent.id);
-            const stackedY =
-              siblings.length > 0
-                ? Math.max(
-                    ...siblings.map(
-                      (c) => c.position.y + ((c.measured?.height ?? c.height) ?? 100),
-                    ),
-                  ) + GAP
-                : HEADER_H + GAP;
-
-            return { x: centeredX, y: stackedY };
-          })()
-        : position;
-
-      const newNode: WorkflowNode = {
-        id: nextId(),
-        type: nodeType,
-        position: defaultPosition,
-        data: { label: NODE_TYPE_CONFIG[nodeType].label, nodeType },
-        ...(workAreaParent
-          ? { parentId: workAreaParent.id, extent: 'parent' as const }
-          : {}),
-      };
-
-      setNodes((nds) => [...nds, newNode]);
-      setIsDirty(true);
     },
     [screenToFlowPosition, setNodes, nodes],
   );

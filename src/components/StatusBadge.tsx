@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 
 type StatusKey =
   | 'active' | 'expiring_soon' | 'expired' | 'revoked'

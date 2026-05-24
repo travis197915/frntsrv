@@ -1,66 +1,76 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@apollo/client/react';
-import { Search, Plus } from 'lucide-react';
-import SidebarLayout from '@/layouts/SidebarLayout';
-import Loader from '@/components/Loader';
-import { ErrorAlert } from '@/components/ErrorAlert';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { FormPanel, FormInput } from '@/components/FormPanel';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Search, Plus } from "lucide-react";
+import SidebarLayout from "@/layouts/SidebarLayout";
+import Loader from "@/components/Loader";
+import { ErrorAlert } from "@/components/ErrorAlert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FormPanel, FormInput } from "@/components/FormPanel";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { relayClient, usersClient } from "@/lib/clients";
+import debounce from "@/utils/debounce";
 import {
-  USERS_QUERY,
-  SIGNUP_MUTATION,
-} from '@/graphql/auth.graphql';
-import type { UsersQuery, UsersQueryVariables } from '@/__generated__/graphql';
-import { UserRoleEnumType } from '@/__generated__/graphql';
-import debounce from '@/utils/debounce';
-import StatusBadge from '@/components/StatusBadge';
+  appendCursorPage,
+  buildListQuery,
+  type PaginatedList,
+} from "@/utils/query-pagination";
+import StatusBadge from "@/components/StatusBadge";
+
+type UserRow = {
+  id: string;
+  name?: string;
+  email: string;
+  role?: string;
+  isActive: boolean;
+};
+
+type UserList = PaginatedList<UserRow>;
 
 export default function UsersListPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
   const [showAdd, setShowAdd] = useState(false);
 
-  const { data, loading, error, fetchMore, refetch } = useQuery<UsersQuery, UsersQueryVariables>(USERS_QUERY, {
-    variables: { limit: 20 },
-    notifyOnNetworkStatusChange: true,
-    fetchPolicy: 'cache-and-network',
+  const [searchText, setSearchText] = useState("");
+  const {
+    data,
+    isLoading: loading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["users", "list", { limit: 20, search: searchText }],
+    queryFn: () =>
+      usersClient.get<UserList>(`/?${buildListQuery({ limit: 20, search: searchText })}`),
   });
 
-  const [signupUser, { loading: creating }] = useMutation(SIGNUP_MUTATION, {
-    refetchQueries: ['Users'],
+  const { mutateAsync: signupUser, isPending: creating } = useMutation({
+    mutationFn: (payload: { email: string; password: string; name?: string }) =>
+      relayClient.post("/register", payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
   });
 
-  const users = data?.users.nodes ?? [];
-  const pageInfo = data?.users.pageInfo;
+  const users = data?.nodes ?? [];
+  const pageInfo = data?.pageInfo;
 
   const handleAddUser = async (values: Record<string, unknown>) => {
-    const r = String(values.role ?? '').toUpperCase();
-    const role = r === 'ADMIN' ? UserRoleEnumType.Admin : UserRoleEnumType.User;
     await signupUser({
-      variables: {
-        email: String(values.email),
-        password: String(values.password),
-        name: String(values.name),
-        role,
-      },
+      email: String(values.email),
+      password: String(values.password),
+      name: String(values.name),
     });
   };
 
   const debouncedSearch = debounce((text: string) => {
-    refetch({
-      filters: { text: text || undefined },
-      cursor: undefined,
-      limit: 20,
-    });
+    setSearchText(text);
   }, 300);
 
   return (
@@ -75,7 +85,11 @@ export default function UsersListPage() {
             />
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => setShowAdd(true)} className="gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => setShowAdd(true)}
+              className="gap-2 shrink-0"
+            >
               <Plus className="h-4 w-4" />
               Add user
             </Button>
@@ -97,22 +111,40 @@ export default function UsersListPage() {
               error={undefined}
               submitButtonLabel="Create"
             >
-              <FormInput fieldName="name" label="Name" validators={{ required: true }} />
-              <FormInput fieldName="email" label="Email" type="email" validators={{ required: true }} />
-              <FormInput fieldName="password" label="Password" type="password" validators={{ required: true }} />
+              <FormInput
+                fieldName="name"
+                label="Name"
+                validators={{ required: true }}
+              />
+              <FormInput
+                fieldName="email"
+                label="Email"
+                type="email"
+                validators={{ required: true }}
+              />
+              <FormInput
+                fieldName="password"
+                label="Password"
+                type="password"
+                validators={{ required: true }}
+              />
               <FormInput fieldName="role" label="Role (USER or ADMIN)" />
             </FormPanel>
           </DialogContent>
         </Dialog>
 
-        {error && <ErrorAlert error="Failed to load users." refetch={() => refetch()} />}
+        {error && (
+          <ErrorAlert error="Failed to load users." refetch={() => refetch()} />
+        )}
 
         {loading && !data ? (
           <div className="flex justify-center py-12">
             <Loader />
           </div>
         ) : users.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-12">No users found.</p>
+          <p className="text-sm text-muted-foreground text-center py-12">
+            No users found.
+          </p>
         ) : (
           <>
             <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -120,9 +152,15 @@ export default function UsersListPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">User</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">Role</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">
+                        User
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                        Role
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -133,14 +171,20 @@ export default function UsersListPage() {
                         onClick={() => navigate(`/users/${u.id}`)}
                       >
                         <td className="px-4 py-3">
-                          <p className="font-medium text-foreground">{u.name || u.email}</p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                          <p className="font-medium text-foreground">
+                            {u.name || u.email}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {u.email}
+                          </p>
                         </td>
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          <StatusBadge status={u.role?.toLowerCase()} />
+                          <StatusBadge status={u.role?.toLowerCase() ?? ""} />
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={String(u.status).toLowerCase()} />
+                          <StatusBadge
+                            status={u.isActive ? "active" : "inactive"}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -156,17 +200,14 @@ export default function UsersListPage() {
                   size="sm"
                   loading={loading}
                   onClick={() =>
-                    fetchMore({
-                      variables: { cursor: pageInfo.cursor, limit: 20 },
-                      updateQuery: (prev, { fetchMoreResult }) => {
-                        if (!fetchMoreResult?.users) return prev;
-                        return {
-                          users: {
-                            ...fetchMoreResult.users,
-                            nodes: [...prev.users.nodes, ...fetchMoreResult.users.nodes],
-                          },
-                        };
-                      },
+                    appendCursorPage({
+                      queryClient,
+                      queryKey: ["users", "list", { limit: 20, search: searchText }],
+                      cursor: pageInfo.cursor,
+                      fetchPage: (cursor) =>
+                        usersClient.get<UserList>(
+                          `/?${buildListQuery({ limit: 20, cursor, search: searchText })}`,
+                        ),
                     })
                   }
                 >

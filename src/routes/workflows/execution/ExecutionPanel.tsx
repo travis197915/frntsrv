@@ -946,7 +946,9 @@ export default function ExecutionPanel({
                     </p>
                     <p className="text-[10px] text-muted-foreground truncate">
                       <span style={{ color: cfg?.color }}>{cfg?.label}</span>
-                      {node.data.agentType && ` · ${node.data.agentType}`}
+                      {typeof node.data.agentType === 'string' && node.data.agentType
+                        ? ` · ${node.data.agentType}`
+                        : null}
                     </p>
                   </div>
                   {chip && (

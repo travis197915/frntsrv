@@ -4,7 +4,7 @@ import { Search, DollarSign, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from 
 import SidebarLayout from '@/layouts/SidebarLayout';
 import EmptyState from '@/components/EmptyState';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 import {
   usageRecords,
   filterByPeriod,

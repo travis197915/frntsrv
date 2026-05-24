@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import type { Dispatch, FC } from 'react';
 import { TextField } from '@/components/TextField';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 import { compareValues } from '@/utils/compare-values';
 import FormPanelContext from './form-panel-context';
 import type { ActionType, UpdateStateActionType } from './form-panel-reducer';

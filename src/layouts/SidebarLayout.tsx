@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, ChevronDown, LogOut, Menu, User } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { getRoleLabel } from '@/types';
+import { getRoleLabel } from '@/utils/user';
 import { PlatformSection } from '@/components/Sidebar';
 import { ThemeToggleButton } from '@/components/ThemeToggleButton';
 

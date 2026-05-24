@@ -175,7 +175,7 @@ export default function SopSectionsPanel({ jobId }: SopSectionsPanelProps) {
   return (
     <div className="h-full overflow-y-auto bg-card">
       {/* Header */}
-      <div className="p-3 border-b border-border bg-muted/30 sticky top-0 z-10">
+      <div className="sticky top-0 z-10 p-3 border-b border-border bg-card shadow-sm">
         <h2 className="text-sm font-semibold truncate">{data.title || 'SOP'}</h2>
         {data.summary && (
           <p className="text-[11px] text-muted-foreground mt-1 line-clamp-3">{data.summary}</p>

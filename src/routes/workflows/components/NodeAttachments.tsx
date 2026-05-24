@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, X, FileText, Search, Wrench, ShieldCheck, GitBranch, Link2,
   BookOpen, Ban, ExternalLink, FileWarning, CheckSquare, Maximize2,
@@ -1077,14 +1077,40 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
     return Array.from(bySop.values());
   }, [data, query, sopFilter, availableSops]);
 
+  /** Measured height of each sticky SOP header — section headers stick below it. */
+  const sopHeaderRefs = useRef(new Map<number, HTMLDivElement>());
+  const [sopHeaderHeights, setSopHeaderHeights] = useState<Record<number, number>>({});
+
+  useLayoutEffect(() => {
+    const observers: ResizeObserver[] = [];
+
+    const measure = (sopId: number, el: HTMLDivElement) => {
+      const height = Math.ceil(el.getBoundingClientRect().height);
+      setSopHeaderHeights((prev) =>
+        prev[sopId] === height ? prev : { ...prev, [sopId]: height },
+      );
+    };
+
+    for (const sop of groupedBySop) {
+      const el = sopHeaderRefs.current.get(sop.sop_id);
+      if (!el) continue;
+      measure(sop.sop_id, el);
+      const ro = new ResizeObserver(() => measure(sop.sop_id, el));
+      ro.observe(el);
+      observers.push(ro);
+    }
+
+    return () => observers.forEach((ro) => ro.disconnect());
+  }, [groupedBySop]);
+
   const filteredTools = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
     if (!q) return data.tool_calls;
     return data.tool_calls.filter((t) =>
       t.name.toLowerCase().includes(q) ||
-      t.url.toLowerCase().includes(q) ||
-      t.method.toLowerCase().includes(q));
+      (t.url ?? "").toLowerCase().includes(q) ||
+      (t.method ?? "").toLowerCase().includes(q));
   }, [data, query]);
 
   // Index every rule by key so we can resolve `references` transitively.
@@ -1372,7 +1398,13 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
               {groupedBySop.map((sop) => (
                 <div key={sop.sop_id}>
                   {/* SOP header — one per SOP, sticky */}
-                  <div className="px-4 py-2 bg-indigo-50/60 sticky top-0 z-20 border-b border-indigo-100 flex items-start gap-2">
+                  <div
+                    ref={(el) => {
+                      if (el) sopHeaderRefs.current.set(sop.sop_id, el);
+                      else sopHeaderRefs.current.delete(sop.sop_id);
+                    }}
+                    className="sticky top-0 z-20 px-4 py-2 bg-indigo-50 border-b border-indigo-100 shadow-sm flex items-start gap-2"
+                  >
                     <BookOpen className="h-3.5 w-3.5 text-indigo-600 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-indigo-900 truncate">{sop.title}</p>
@@ -1386,7 +1418,10 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
 
                   {sop.sections.map((g) => (
                     <div key={g.id}>
-                      <div className="px-4 py-1.5 bg-muted/30 sticky top-[52px] z-10 flex items-center gap-2 border-b border-border/60">
+                      <div
+                        className="sticky z-[15] px-4 py-1.5 bg-card border-b border-border shadow-sm flex items-center gap-2"
+                        style={{ top: sopHeaderHeights[sop.sop_id] ?? 0 }}
+                      >
                         {g.sectionKey.startsWith('Pre-condition')
                           ? <ShieldCheck className="h-3 w-3 text-amber-600" />
                           : <GitBranch className="h-3 w-3 text-blue-600" />}
@@ -1921,7 +1956,7 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
         {/* Focused source-of-truth panel (slides up from above the footer) */}
         {focusedRef && (
           <div className="border-t border-border bg-amber-50/40 max-h-[28vh] overflow-y-auto">
-            <div className="px-4 py-2 border-b border-amber-200/60 flex items-center gap-2 sticky top-0 bg-amber-50/80 backdrop-blur">
+            <div className="sticky top-0 z-10 px-4 py-2 bg-amber-50 border-b border-amber-200 shadow-sm flex items-center gap-2">
               <FileWarning className="h-3.5 w-3.5 text-amber-700" />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-semibold truncate">

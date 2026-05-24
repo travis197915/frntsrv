@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from 'react';
-import { useTheme } from '@/lib/theme';
+import { useTheme } from '@/utils/theme';
 
 function readCssColors() {
   if (typeof document === 'undefined') {

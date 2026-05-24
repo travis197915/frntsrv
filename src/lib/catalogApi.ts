@@ -5,69 +5,78 @@
  * entries, dashboard tiles, and per-shape inspector forms all live in the
  * Django `builder` app and arrive here as plain JSON.
  *
- *   GET /catalog/categories/       → palette grouped by category
- *   GET /catalog/shapes/           → flat list of every palette item
- *   GET /catalog/shapes/:slug/     → one shape definition
- *   GET /ui/navigation/            → sidebar entries
- *   GET /ui/dashboard/             → dashboard tiles
+ *   GET /catalog/categories/  → palette grouped by category
+ *   GET /catalog/shapes/      → flat list of every palette item
+ *   GET /catalog/shapes/:slug → one shape definition
+ *   GET /ui/navigation/       → sidebar entries
+ *   GET /ui/dashboard/        → dashboard tiles
  */
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
-import {
-  api,
-  type DashboardWidget,
-  type NavItem,
-  type ShapeCategory,
-  type ShapeDefinition,
-} from './api';
+import { builderClient } from './clients';
+import type {
+  DashboardWidget,
+  NavItem,
+  ShapeCategory,
+  ShapeDefinition,
+} from '../interfaces/builder';
 
-// ── One-shot fetchers ───────────────────────────────────────────────────────
+// ── Imperative fetchers (kept for direct / context use) ─────────────────────
 
 export const catalogApi = {
-  categories:   () => api.get<ShapeCategory[]>('/catalog/categories/'),
-  shapes:       () => api.get<ShapeDefinition[]>('/catalog/shapes/'),
-  shape:        (slug: string) => api.get<ShapeDefinition>(`/catalog/shapes/${slug}/`),
-  navigation:   () => api.get<NavItem[]>('/ui/navigation/'),
-  dashboard:    () => api.get<DashboardWidget[]>('/ui/dashboard/'),
+  categories: () => builderClient.get<ShapeCategory[]>('/catalog/categories/'),
+  shapes:     () => builderClient.get<ShapeDefinition[]>('/catalog/shapes/'),
+  shape:      (slug: string) => builderClient.get<ShapeDefinition>(`/catalog/shapes/${slug}/`),
+  navigation: () => builderClient.get<NavItem[]>('/ui/navigation/'),
+  dashboard:  () => builderClient.get<DashboardWidget[]>('/ui/dashboard/'),
 };
 
-// ── React-friendly cached lookups ───────────────────────────────────────────
+// ── Query keys ──────────────────────────────────────────────────────────────
 
-type AsyncResult<T> = { data: T | null; loading: boolean; error: Error | null };
+export const catalogKeys = {
+  categories: ['catalog', 'categories'] as const,
+  shapes:     ['catalog', 'shapes'] as const,
+  shape:      (slug: string) => ['catalog', 'shape', slug] as const,
+  navigation: ['catalog', 'navigation'] as const,
+  dashboard:  ['catalog', 'dashboard'] as const,
+};
 
-function useFetched<T>(fn: () => Promise<T>, deps: unknown[] = []): AsyncResult<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fn()
-      .then((res) => {
-        if (!cancelled) {
-          setData(res);
-          setError(null);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return { data, loading, error };
+const STALE_5MIN = 5 * 60_000;
+
+// ── TanStack Query hooks ─────────────────────────────────────────────────────
+
+export function useShapeCategories() {
+  return useQuery({
+    queryKey: catalogKeys.categories,
+    queryFn:  catalogApi.categories,
+    staleTime: STALE_5MIN,
+  });
 }
 
-export const useShapeCategories = () => useFetched(catalogApi.categories);
-export const useShapeDefinitions = () => useFetched(catalogApi.shapes);
-export const useNavigation = () => useFetched(catalogApi.navigation);
-export const useDashboard = () => useFetched(catalogApi.dashboard);
+export function useShapeDefinitions() {
+  return useQuery({
+    queryKey: catalogKeys.shapes,
+    queryFn:  catalogApi.shapes,
+    staleTime: STALE_5MIN,
+  });
+}
+
+export function useNavigation() {
+  return useQuery({
+    queryKey: catalogKeys.navigation,
+    queryFn:  catalogApi.navigation,
+    staleTime: STALE_5MIN,
+  });
+}
+
+export function useDashboard() {
+  return useQuery({
+    queryKey: catalogKeys.dashboard,
+    queryFn:  catalogApi.dashboard,
+    staleTime: STALE_5MIN,
+  });
+}
 
 // ── Convenience: build a slug → definition map (used by canvas renderer) ────
 

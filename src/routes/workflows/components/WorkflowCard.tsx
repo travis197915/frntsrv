@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Play, Pencil, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowRight, Play, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/utils';
 
 interface WorkflowCardProps {
   id: string;
@@ -179,10 +179,6 @@ export default function WorkflowCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={(e: React.MouseEvent) => { e.stopPropagation(); navigate(`/workflows/${id}`); }}>
-                <Pencil className="h-3.5 w-3.5 mr-2" />
-                Open Builder
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={(e: React.MouseEvent) => { e.stopPropagation(); onRun?.(); }} disabled={disableActions}>
                 <Play className="h-3.5 w-3.5 mr-2" />
                 Run

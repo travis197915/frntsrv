@@ -414,14 +414,13 @@ function WorkflowBuilderInner() {
   );
 
   const miniMapNodeColor = useCallback((node: { data?: { nodeType?: string } }) => {
-    const nodeType = node.data?.nodeType as keyof typeof NODE_TYPE_CONFIG;
-    if (nodeType === 'workarea') return 'rgba(99, 102, 241, 0.12)';
-    return NODE_TYPE_CONFIG[nodeType]?.color ?? ui.mutedForeground;
+    if (node.data?.nodeType === 'workarea') return 'rgba(99, 102, 241, 0.12)';
+    return ui.mutedForeground;
   }, [ui.mutedForeground]);
 
   const miniMapNodeStrokeColor = useCallback((node: { data?: { nodeType?: string } }) => {
-    const nodeType = node.data?.nodeType as keyof typeof NODE_TYPE_CONFIG;
-    return NODE_TYPE_CONFIG[nodeType]?.color ?? 'transparent';
+    if (node.data?.nodeType === 'workarea') return NODE_TYPE_CONFIG.workarea.color;
+    return 'transparent';
   }, []);
 
   const defaultEdgeOptions = useMemo(

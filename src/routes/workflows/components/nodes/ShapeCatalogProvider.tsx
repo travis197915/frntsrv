@@ -2,18 +2,21 @@
  * Tiny context that fetches the Django shape catalog once and serves it to
  * every node on the canvas + the palette + the inspector.  Without this,
  * each node would re-fetch independently and we'd thrash the network.
+ *
+ * Uses TanStack Query so the catalog is cached, deduplicated, and refetchable
+ * via invalidateQueries rather than a manual bump counter.
  */
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   catalogApi,
+  catalogKeys,
   indexShapes,
 } from '@/lib/catalogApi';
 import type { ShapeCategory, ShapeDefinition } from '@/lib/api';
@@ -39,43 +42,29 @@ const empty: CatalogValue = {
 const Ctx = createContext<CatalogValue>(empty);
 
 export function ShapeCatalogProvider({ children }: { children: ReactNode }) {
-  const [categories, setCategories] = useState<ShapeCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [bump, setBump] = useState(0);
+  const qc = useQueryClient();
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    catalogApi.categories()
-      .then((cats) => {
-        if (!cancelled) {
-          setCategories(cats);
-          setError(null);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [bump]);
+  const {
+    data: categories = [],
+    isLoading: loading,
+    error,
+  } = useQuery({
+    queryKey: catalogKeys.categories,
+    queryFn: catalogApi.categories,
+    staleTime: 5 * 60_000,
+  });
 
   const value = useMemo<CatalogValue>(() => {
     const shapes = categories.flatMap((c) => c.shapes);
     return {
       loading,
-      error,
+      error: (error as Error | null) ?? null,
       categories,
       shapes,
       bySlug: indexShapes(shapes),
-      refetch: () => setBump((n) => n + 1),
+      refetch: () => qc.invalidateQueries({ queryKey: catalogKeys.categories }),
     };
-  }, [categories, loading, error]);
+  }, [loading, error, categories, qc]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

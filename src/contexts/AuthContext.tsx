@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { User, RoleRequirement } from '@/types';
-import { isAdmin } from '@/types';
+import type { User, RoleRequirement } from '@/utils/user';
+import { isAdmin } from '@/utils/user';
 import { AUTH_USER_KEY, clearToken, getToken, setToken } from '@/utils/auth';
 import { authApi, type AuthResponse, type CorebackendUser } from '@/lib/api';
 

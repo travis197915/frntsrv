@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { useShapeCatalog } from './ShapeCatalogProvider';
-import type { NodeMeta } from '@/lib/workflowsApi';
+import type { NodeMeta } from '@/lib/api';
 
 export interface DynamicNodeData extends NodeMeta, Record<string, unknown> {
   label?: string;
@@ -21,7 +21,10 @@ const HANDLE_STYLE: React.CSSProperties = {
 export function DynamicShapeNode({ data, selected, width, height }: NodeProps<DynamicShapeNodeType>) {
   const catalog = useShapeCatalog();
   const def = useMemo(
-    () => (data.definitionSlug ? catalog.bySlug[data.definitionSlug] : undefined),
+    () => {
+      const slug = data.definitionSlug;
+      return typeof slug === 'string' && slug ? catalog.bySlug[slug] : undefined;
+    },
     [catalog, data.definitionSlug],
   );
 

@@ -1,13 +1,20 @@
-import { useQuery } from '@apollo/client/react';
-import { Bot, GitBranch, Activity, Clock, ShieldCheck, Sparkles, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import SidebarLayout from '@/layouts/SidebarLayout';
-import Loader from '@/components/Loader';
-import StatusBadge from '@/components/StatusBadge';
-import { DASHBOARD_STATS_QUERY } from '@/graphql/dashboard.graphql';
-import { LIST_TRANSACTIONS_QUERY } from '@/graphql/transaction.graphql';
-import { LICENSE_STATUS_QUERY } from '@/graphql/license.graphql';
-import { getUsageSummary } from '@/routes/ai-usage/demoData';
+import {
+  Bot,
+  GitBranch,
+  Activity,
+  Clock,
+  ShieldCheck,
+  Sparkles,
+  ExternalLink,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import SidebarLayout from "@/layouts/SidebarLayout";
+import Loader from "@/components/Loader";
+import StatusBadge from "@/components/StatusBadge";
+import { apiClient } from "@/lib/clients";
+import { decodeJwtPayload, getToken } from "@/utils/auth";
+import { getUsageSummary } from "@/routes/ai-usage/demoData";
 
 function StatCard({
   icon: Icon,
@@ -26,36 +33,68 @@ function StatCard({
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <p className="text-2xl font-bold text-foreground leading-none">{value}</p>
+        <p className="text-2xl font-bold text-foreground leading-none">
+          {value}
+        </p>
         <p className="mt-1 text-xs text-muted-foreground">{label}</p>
       </div>
     </div>
   );
 }
 
-function normaliseRunStatus(raw: string): string {
-  const s = raw.toLowerCase();
-  if (s === 'pending' || s === 'paused') return 'running';
+function normaliseRunStatus(raw: string | undefined | null): string {
+  const s = (raw ?? "unknown").toLowerCase();
+  if (s === "pending" || s === "paused") return "running";
   return s;
 }
 
 export default function DashboardPage() {
-  const { data: statsData, loading: statsLoading } = useQuery(DASHBOARD_STATS_QUERY, {
-    fetchPolicy: 'cache-and-network',
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["dashboard", "stats"],
+    queryFn: () =>
+      apiClient.get<{
+        totalAgents: number;
+        onlineAgents: number;
+        activeWorkflows: number;
+        totalTransactions: number;
+      }>("/dashboard/stats"),
+    staleTime: 60_000,
   });
 
-  const { data: txData, loading: txLoading } = useQuery(LIST_TRANSACTIONS_QUERY, {
-    variables: { limit: 5 },
-    fetchPolicy: 'cache-and-network',
+  const { data: runsData, isLoading: txLoading } = useQuery({
+    queryKey: ["runs", "list", { limit: 5 }],
+    queryFn: () =>
+      apiClient.get<{ nodes: unknown[] }>("/runs/?limit=5"),
   });
 
-  const { data: licenseData } = useQuery(LICENSE_STATUS_QUERY, {
-    fetchPolicy: 'cache-and-network',
+  const { data: license } = useQuery({
+    queryKey: ["dashboard", "license"],
+    queryFn: () => {
+      const token = getToken();
+      if (!token) return null;
+      const payload = decodeJwtPayload(token);
+      const lic = {
+        clientId: payload.clientId as string | undefined,
+        tier: payload.tier as string | undefined,
+        maxAgents: payload.maxAgents as number | undefined,
+        features: payload.features as string[] | undefined,
+        issuedAt: payload.issuedAt as string | undefined,
+        expiresAt: payload.expiresAt as string | undefined,
+        licenseId: payload.licenseId as string | undefined,
+        daysLeft: payload.daysLeft as number | undefined,
+        status: payload.licenseStatus as string | undefined,
+      };
+      const hasLicenseData =
+        lic.status != null ||
+        lic.tier != null ||
+        lic.clientId != null ||
+        lic.daysLeft != null;
+      return hasLicenseData ? lic : null;
+    },
+    staleTime: Infinity,
   });
 
-  const stats = (statsData as any)?.dashboardStats;
-  const transactions: any[] = (txData as any)?.transactions?.nodes ?? [];
-  const license = (licenseData as any)?.licenseStatus;
+  const transactions: any[] = runsData?.nodes ?? [];
   const aiUsage = getUsageSummary(14);
 
   const runsLoading = txLoading && transactions.length === 0;
@@ -96,13 +135,22 @@ export default function DashboardPage() {
           <StatCard
             icon={ShieldCheck}
             label="Days till Renewal"
-            value={license ? (license.status === 'EXPIRED' ? 'Expired' : `${license.daysLeft}d`) : '—'}
+            value={
+              license?.daysLeft != null
+                ? license.status === "EXPIRED" || license.daysLeft <= 0
+                  ? "Expired"
+                  : `${license.daysLeft}d`
+                : "—"
+            }
             iconColor={
-              !license || license.status === 'EXPIRED'
-                ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                : license.status === 'EXPIRING_SOON'
-                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                  : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+              !license ||
+              license.status === "EXPIRED" ||
+              (license.daysLeft != null && license.daysLeft <= 0)
+                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                : license.status === "EXPIRING_SOON" ||
+                    (license.daysLeft != null && license.daysLeft < 30)
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                  : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
             }
           />
         </div>
@@ -112,8 +160,13 @@ export default function DashboardPage() {
         {/* Recent Workflow Runs */}
         <div className="lg:col-span-2 rounded-lg border border-border bg-card">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-medium text-foreground">Recent Workflow Runs</h2>
-            <Link to="/activity" className="flex items-center gap-1 text-[11px] text-primary hover:underline">
+            <h2 className="text-sm font-medium text-foreground">
+              Recent Workflow Runs
+            </h2>
+            <Link
+              to="/activity"
+              className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
               View all
               <ExternalLink className="h-3 w-3" />
             </Link>
@@ -141,13 +194,16 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground">
                       {tx.createdAt
                         ? new Date(tx.createdAt).toLocaleString(undefined, {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
+                            dateStyle: "medium",
+                            timeStyle: "short",
                           })
-                        : '—'}
+                        : "—"}
                     </p>
                   </div>
-                  <StatusBadge status={normaliseRunStatus(tx.status)} className="ml-3 shrink-0" />
+                  <StatusBadge
+                    status={normaliseRunStatus(tx.status)}
+                    className="ml-3 shrink-0"
+                  />
                 </Link>
               ))}
             </div>
@@ -159,7 +215,9 @@ export default function DashboardPage() {
           {/* License Status */}
           <div className="rounded-lg border border-border bg-card">
             <div className="px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-medium text-foreground">License Status</h2>
+              <h2 className="text-sm font-medium text-foreground">
+                License Status
+              </h2>
             </div>
             {!license ? (
               <div className="py-8 text-center text-sm text-muted-foreground px-4">
@@ -169,32 +227,48 @@ export default function DashboardPage() {
               <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Status</span>
-                  <StatusBadge status={license.status.toLowerCase()} />
+                  <StatusBadge status={(license.status ?? "unknown").toLowerCase()} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Tier</span>
-                  <span className="text-xs font-medium text-foreground capitalize">{license.tier}</span>
+                  <span className="text-xs font-medium text-foreground capitalize">
+                    {license.tier}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Max Agents</span>
-                  <span className="text-xs font-medium text-foreground">{license.maxAgents}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Max Agents
+                  </span>
+                  <span className="text-xs font-medium text-foreground">
+                    {license.maxAgents}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Expires</span>
-                  <span className="text-xs font-medium text-foreground">{license.expiresAt}</span>
+                  <span className="text-xs font-medium text-foreground">
+                    {license.expiresAt}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Days Left</span>
+                  <span className="text-xs text-muted-foreground">
+                    Days Left
+                  </span>
                   <span
                     className={`text-xs font-bold ${
-                      license.daysLeft <= 0
-                        ? 'text-red-500'
-                        : license.daysLeft < 30
-                          ? 'text-amber-500'
-                          : 'text-green-500'
+                      license.daysLeft == null
+                        ? "text-muted-foreground"
+                        : license.daysLeft <= 0
+                          ? "text-red-500"
+                          : license.daysLeft < 30
+                            ? "text-amber-500"
+                            : "text-green-500"
                     }`}
                   >
-                    {license.daysLeft <= 0 ? 'Expired' : `${license.daysLeft} days`}
+                    {license.daysLeft == null
+                      ? "—"
+                      : license.daysLeft <= 0
+                        ? "Expired"
+                        : `${license.daysLeft} days`}
                   </span>
                 </div>
               </div>
@@ -206,7 +280,9 @@ export default function DashboardPage() {
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-                <h2 className="text-sm font-medium text-foreground">AI Usage</h2>
+                <h2 className="text-sm font-medium text-foreground">
+                  AI Usage
+                </h2>
               </div>
               <Link
                 to="/ai-usage"
@@ -218,50 +294,68 @@ export default function DashboardPage() {
             </div>
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Total Cost</span>
+                <span className="text-xs text-muted-foreground">
+                  Total Cost
+                </span>
                 <span className="text-xs font-semibold text-foreground">
                   ${aiUsage.totalCost.toFixed(2)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">API Calls</span>
-                <span className="text-xs font-medium text-foreground">{aiUsage.totalCalls}</span>
+                <span className="text-xs font-medium text-foreground">
+                  {aiUsage.totalCalls}
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Input Tokens</span>
+                <span className="text-xs text-muted-foreground">
+                  Input Tokens
+                </span>
                 <span className="text-xs font-medium text-foreground tabular-nums">
                   {new Intl.NumberFormat().format(aiUsage.totalInputTokens)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Output Tokens</span>
+                <span className="text-xs text-muted-foreground">
+                  Output Tokens
+                </span>
                 <span className="text-xs font-medium text-foreground tabular-nums">
                   {new Intl.NumberFormat().format(aiUsage.totalOutputTokens)}
                 </span>
               </div>
-              {aiUsage.totalCalls > 0 && (() => {
-                const total = aiUsage.totalInputTokens + aiUsage.totalOutputTokens;
-                const inputPct = total > 0 ? Math.round((aiUsage.totalInputTokens / total) * 100) : 0;
-                return (
-                  <div className="pt-1">
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden flex">
-                      <div className="h-full bg-primary/60" style={{ width: `${inputPct}%` }} />
-                      <div className="h-full bg-muted-foreground/25 flex-1" />
+              {aiUsage.totalCalls > 0 &&
+                (() => {
+                  const total =
+                    aiUsage.totalInputTokens + aiUsage.totalOutputTokens;
+                  const inputPct =
+                    total > 0
+                      ? Math.round((aiUsage.totalInputTokens / total) * 100)
+                      : 0;
+                  return (
+                    <div className="pt-1">
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden flex">
+                        <div
+                          className="h-full bg-primary/60"
+                          style={{ width: `${inputPct}%` }}
+                        />
+                        <div className="h-full bg-muted-foreground/25 flex-1" />
+                      </div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="h-1.5 w-1.5 rounded-sm bg-primary/60" />
+                          In {inputPct}%
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="h-1.5 w-1.5 rounded-sm bg-muted-foreground/25" />
+                          Out {100 - inputPct}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <span className="h-1.5 w-1.5 rounded-sm bg-primary/60" />
-                        In {inputPct}%
-                      </span>
-                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <span className="h-1.5 w-1.5 rounded-sm bg-muted-foreground/25" />
-                        Out {100 - inputPct}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-              <p className="text-[10px] text-muted-foreground pt-1">{aiUsage.periodLabel}</p>
+                  );
+                })()}
+              <p className="text-[10px] text-muted-foreground pt-1">
+                {aiUsage.periodLabel}
+              </p>
             </div>
           </div>
         </div>

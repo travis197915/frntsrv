@@ -1,5 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@apollo/client/react';
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bot,
@@ -10,44 +10,76 @@ import {
   Cpu,
   Zap,
   Loader2,
-} from 'lucide-react';
-import SidebarLayout from '@/layouts/SidebarLayout';
-import { cn } from '@/lib/utils';
-import { GET_AGENT_QUERY } from '@/graphql/agent.graphql';
+} from "lucide-react";
+import SidebarLayout from "@/layouts/SidebarLayout";
+import { cn } from "@/utils/utils";
+import { apiClient } from "@/lib/clients";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '—';
+  if (!dateStr) return "—";
   return new Date(dateStr).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function humaniseKey(key: string): string {
   return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/[_-]/g, ' ')
+    .replace(/([A-Z])/g, " $1")
+    .replace(/[_-]/g, " ")
     .replace(/^\w/, (c) => c.toUpperCase())
     .trim();
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
-const STATUS_META: Record<string, { dot: string; badge: string; label: string }> = {
-  online:  { dot: 'bg-emerald-500',           badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', label: 'Online' },
-  busy:    { dot: 'bg-blue-500 animate-pulse', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',           label: 'Busy' },
-  offline: { dot: 'bg-slate-400',             badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',           label: 'Offline' },
-  error:   { dot: 'bg-red-500',               badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',               label: 'Error' },
-  idle:    { dot: 'bg-slate-400',             badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',           label: 'Idle' },
+const STATUS_META: Record<
+  string,
+  { dot: string; badge: string; label: string }
+> = {
+  online: {
+    dot: "bg-emerald-500",
+    badge:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    label: "Online",
+  },
+  busy: {
+    dot: "bg-blue-500 animate-pulse",
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    label: "Busy",
+  },
+  offline: {
+    dot: "bg-slate-400",
+    badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    label: "Offline",
+  },
+  error: {
+    dot: "bg-red-500",
+    badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    label: "Error",
+  },
+  idle: {
+    dot: "bg-slate-400",
+    badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    label: "Idle",
+  },
 };
 
 function AgentStatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status.toLowerCase()] ?? STATUS_META.offline;
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium', meta.badge)}>
-      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)} />
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        meta.badge,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dot)} />
       {meta.label}
     </span>
   );
@@ -55,22 +87,35 @@ function AgentStatusBadge({ status }: { status: string }) {
 
 // ── Metadata property list ────────────────────────────────────────────────────
 
-function MetaValue({ value }: { value: string | number | boolean | null }): React.ReactElement {
+function MetaValue({
+  value,
+}: {
+  value: string | number | boolean | null;
+}): React.ReactElement {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground italic text-xs">—</span>;
   }
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return (
-      <span className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-        value
-          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-      )}>
-        {value
-          ? <><CheckCircle2 className="h-3 w-3" />Yes</>
-          : <><XCircle className="h-3 w-3" />No</>
-        }
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+          value
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+        )}
+      >
+        {value ? (
+          <>
+            <CheckCircle2 className="h-3 w-3" />
+            Yes
+          </>
+        ) : (
+          <>
+            <XCircle className="h-3 w-3" />
+            No
+          </>
+        )}
       </span>
     );
   }
@@ -78,7 +123,10 @@ function MetaValue({ value }: { value: string | number | boolean | null }): Reac
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((item, i) => (
-          <span key={i} className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground border border-border">
+          <span
+            key={i}
+            className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground border border-border"
+          >
             {String(item)}
           </span>
         ))}
@@ -88,7 +136,11 @@ function MetaValue({ value }: { value: string | number | boolean | null }): Reac
   return <span className="text-sm text-foreground">{String(value)}</span>;
 }
 
-function MetadataBlock({ data }: { data: Record<string, string | number | boolean | null> }) {
+function MetadataBlock({
+  data,
+}: {
+  data: Record<string, string | number | boolean | null>;
+}) {
   const entries = Object.entries(data);
   if (entries.length === 0) return null;
   return (
@@ -109,7 +161,11 @@ function MetadataBlock({ data }: { data: Record<string, string | number | boolea
 
 // ── Info row ──────────────────────────────────────────────────────────────────
 
-function InfoRow({ icon, label, children }: {
+function InfoRow({
+  icon,
+  label,
+  children,
+}: {
   icon: React.ReactNode;
   label: string;
   children: React.ReactNode;
@@ -135,10 +191,10 @@ export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data, loading } = useQuery(GET_AGENT_QUERY, {
-    variables: { id },
-    skip: !id,
-    fetchPolicy: 'cache-and-network',
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ["agents", id],
+    queryFn: () => apiClient.get<unknown>(`/agents/${id}/`),
+    enabled: !!id,
   });
 
   if (loading) {
@@ -159,10 +215,12 @@ export default function AgentDetailPage() {
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <XCircle className="h-10 w-10 text-muted-foreground" />
           <p className="text-sm font-medium text-foreground">Agent not found</p>
-          <p className="text-xs text-muted-foreground">No agent matches ID "{id}".</p>
+          <p className="text-xs text-muted-foreground">
+            No agent matches ID "{id}".
+          </p>
           <button
             type="button"
-            onClick={() => navigate('/agents')}
+            onClick={() => navigate("/agents")}
             className="mt-2 text-xs text-primary hover:underline"
           >
             Back to Agents
@@ -173,25 +231,26 @@ export default function AgentDetailPage() {
   }
 
   const agent = {
-    id:           agentRaw.id ?? agentRaw.name,
-    name:         agentRaw.name,
-    type:         agentRaw.type ?? 'pipeline-agent',
-    status:       agentRaw.status ?? agentRaw.latestStatus ?? 'offline',
-    description:  agentRaw.description ?? `Agent for ${agentRaw.name}`,
+    id: agentRaw.id ?? agentRaw.name,
+    name: agentRaw.name,
+    type: agentRaw.type ?? "pipeline-agent",
+    status: agentRaw.status ?? agentRaw.latestStatus ?? "offline",
+    description: agentRaw.description ?? `Agent for ${agentRaw.name}`,
     capabilities: agentRaw.capabilities ?? agentRaw.pipelines ?? [],
-    lastSeenAt:   agentRaw.lastSeenAt ?? null,
-    metadata:     agentRaw.metadata ?? '{}',
-    createdAt:    agentRaw.createdAt ?? null,
-    updatedAt:    agentRaw.updatedAt ?? null,
+    lastSeenAt: agentRaw.lastSeenAt ?? null,
+    metadata: agentRaw.metadata ?? "{}",
+    createdAt: agentRaw.createdAt ?? null,
+    updatedAt: agentRaw.updatedAt ?? null,
     recentExecutions: agentRaw.recentExecutions ?? [],
   };
 
   let metadata: Record<string, string | number | boolean | null> = {};
   try {
-    const parsed: unknown = typeof agent.metadata === 'string'
-      ? JSON.parse(agent.metadata)
-      : agent.metadata;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const parsed: unknown =
+      typeof agent.metadata === "string"
+        ? JSON.parse(agent.metadata)
+        : agent.metadata;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       metadata = parsed as Record<string, string | number | boolean | null>;
     }
   } catch {
@@ -205,7 +264,7 @@ export default function AgentDetailPage() {
         <div className="flex items-start gap-3">
           <button
             type="button"
-            onClick={() => navigate('/agents')}
+            onClick={() => navigate("/agents")}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0 mt-0.5"
             aria-label="Back to Agents"
           >
@@ -213,13 +272,17 @@ export default function AgentDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-base font-semibold text-foreground">{agent.name}</h2>
+              <h2 className="text-base font-semibold text-foreground">
+                {agent.name}
+              </h2>
               <AgentStatusBadge status={agent.status} />
               <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 text-[11px] font-medium">
                 {agent.type}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl">{agent.description}</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+              {agent.description}
+            </p>
           </div>
         </div>
       </div>
@@ -230,19 +293,35 @@ export default function AgentDetailPage() {
         <div className="w-full lg:w-72 xl:w-80 shrink-0">
           <div className="rounded-xl border border-border bg-card px-4 py-1 sticky top-6">
             <InfoRow icon={<Bot className="h-4 w-4" />} label="Agent ID">
-              <span className="font-mono text-xs text-muted-foreground">{agent.id}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {agent.id}
+              </span>
             </InfoRow>
             <InfoRow icon={<Cpu className="h-4 w-4" />} label="Type">
-              <span className="text-sm font-medium text-foreground">{agent.type}</span>
+              <span className="text-sm font-medium text-foreground">
+                {agent.type}
+              </span>
             </InfoRow>
             <InfoRow icon={<Clock className="h-4 w-4" />} label="Last Seen">
-              <span className="text-sm font-medium text-foreground">{formatDate(agent.lastSeenAt)}</span>
+              <span className="text-sm font-medium text-foreground">
+                {formatDate(agent.lastSeenAt)}
+              </span>
             </InfoRow>
-            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Registered">
-              <span className="text-sm font-medium text-foreground">{formatDate(agent.createdAt)}</span>
+            <InfoRow
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="Registered"
+            >
+              <span className="text-sm font-medium text-foreground">
+                {formatDate(agent.createdAt)}
+              </span>
             </InfoRow>
-            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Last Updated">
-              <span className="text-sm font-medium text-foreground">{formatDate(agent.updatedAt)}</span>
+            <InfoRow
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="Last Updated"
+            >
+              <span className="text-sm font-medium text-foreground">
+                {formatDate(agent.updatedAt)}
+              </span>
             </InfoRow>
           </div>
         </div>
@@ -295,23 +374,29 @@ export default function AgentDetailPage() {
               </div>
               <div className="rounded-lg border border-border bg-muted/30 divide-y divide-border/60 overflow-hidden">
                 {agent.recentExecutions.slice(0, 10).map((exec: any) => (
-                  <div key={exec.id ?? exec.task_id} className="flex items-center justify-between gap-4 px-3 py-2.5">
+                  <div
+                    key={exec.id ?? exec.task_id}
+                    className="flex items-center justify-between gap-4 px-3 py-2.5"
+                  >
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground">
                         {exec.pipelineName ?? exec.pipeline_name}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        Step {exec.stepOrder ?? exec.step_order} · {exec.agentName ?? exec.agent_name}
+                        Step {exec.stepOrder ?? exec.step_order} ·{" "}
+                        {exec.agentName ?? exec.agent_name}
                       </p>
                     </div>
-                    <span className={cn(
-                      'shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full',
-                      exec.status === 'SUCCESS'
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                        : exec.status === 'FAILURE'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-                    )}>
+                    <span
+                      className={cn(
+                        "shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full",
+                        exec.status === "SUCCESS"
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          : exec.status === "FAILURE"
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+                      )}
+                    >
                       {exec.status}
                     </span>
                   </div>
@@ -321,16 +406,19 @@ export default function AgentDetailPage() {
           )}
 
           {/* Error callout */}
-          {(agent.status === 'error' || agent.status === 'offline') && (metadata['error'] || metadata['lastConnectError']) && (
-            <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-4 py-3">
-              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">
-                {agent.status === 'error' ? 'Agent Error' : 'Connection Error'}
-              </p>
-              <p className="text-xs text-red-600/80 dark:text-red-400/80">
-                {String(metadata['error'] ?? metadata['lastConnectError'])}
-              </p>
-            </div>
-          )}
+          {(agent.status === "error" || agent.status === "offline") &&
+            (metadata["error"] || metadata["lastConnectError"]) && (
+              <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-4 py-3">
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">
+                  {agent.status === "error"
+                    ? "Agent Error"
+                    : "Connection Error"}
+                </p>
+                <p className="text-xs text-red-600/80 dark:text-red-400/80">
+                  {String(metadata["error"] ?? metadata["lastConnectError"])}
+                </p>
+              </div>
+            )}
         </div>
       </div>
     </SidebarLayout>

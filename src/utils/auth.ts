@@ -34,3 +34,12 @@ export const getAuthorizationHeader = () => {
   return `Bearer ${token}`;
 };
 
+export function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    const [, payload] = token.split('.');
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return {};
+  }
+}
+

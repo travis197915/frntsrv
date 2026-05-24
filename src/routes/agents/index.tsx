@@ -1,29 +1,58 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@apollo/client/react';
-import { Bot, Search, ChevronRight } from 'lucide-react';
-import SidebarLayout from '@/layouts/SidebarLayout';
-import Loader from '@/components/Loader';
-import EmptyState from '@/components/EmptyState';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
-import { LIST_AGENTS_QUERY } from '@/graphql/agent.graphql';
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Bot, Search, ChevronRight } from "lucide-react";
+import SidebarLayout from "@/layouts/SidebarLayout";
+import Loader from "@/components/Loader";
+import EmptyState from "@/components/EmptyState";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/utils/utils";
+import { apiClient } from "@/lib/clients";
 
 // ── Status meta ───────────────────────────────────────────────────────────────
 
-const STATUS_META: Record<string, { dot: string; badge: string; label: string }> = {
-  online:  { dot: 'bg-emerald-500',                 badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300', label: 'Online' },
-  busy:    { dot: 'bg-blue-500 animate-pulse',       badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',           label: 'Busy' },
-  offline: { dot: 'bg-slate-400',                   badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',           label: 'Offline' },
-  error:   { dot: 'bg-red-500',                     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',               label: 'Error' },
-  idle:    { dot: 'bg-slate-400',                   badge: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',           label: 'Idle' },
+const STATUS_META: Record<
+  string,
+  { dot: string; badge: string; label: string }
+> = {
+  online: {
+    dot: "bg-emerald-500",
+    badge:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    label: "Online",
+  },
+  busy: {
+    dot: "bg-blue-500 animate-pulse",
+    badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    label: "Busy",
+  },
+  offline: {
+    dot: "bg-slate-400",
+    badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    label: "Offline",
+  },
+  error: {
+    dot: "bg-red-500",
+    badge: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    label: "Error",
+  },
+  idle: {
+    dot: "bg-slate-400",
+    badge: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+    label: "Idle",
+  },
 };
 
 function StatusBadge({ status }: { status: string }) {
   const meta = STATUS_META[status.toLowerCase()] ?? STATUS_META.offline;
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium', meta.badge)}>
-      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)} />
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        meta.badge,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dot)} />
       {meta.label}
     </span>
   );
@@ -32,20 +61,20 @@ function StatusBadge({ status }: { status: string }) {
 // ── Status tabs ───────────────────────────────────────────────────────────────
 
 const STATUS_TABS = [
-  { value: '',        label: 'All' },
-  { value: 'online',  label: 'Online' },
-  { value: 'busy',    label: 'Busy' },
-  { value: 'offline', label: 'Offline' },
-  { value: 'error',   label: 'Error' },
+  { value: "", label: "All" },
+  { value: "online", label: "Online" },
+  { value: "busy", label: "Busy" },
+  { value: "offline", label: "Offline" },
+  { value: "error", label: "Error" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return '—';
+  if (!dateStr) return "—";
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'Just now';
+  if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
@@ -68,16 +97,16 @@ interface AgentRow {
 
 function normaliseAgent(a: any): AgentRow {
   return {
-    id:           a.id ?? a.name,
-    name:         a.name,
-    type:         a.type ?? 'pipeline-agent',
-    status:       a.status ?? a.latestStatus ?? 'offline',
-    description:  a.description ?? `Agent for ${a.name}`,
+    id: a.id ?? a.name,
+    name: a.name,
+    type: a.type ?? "pipeline-agent",
+    status: a.status ?? a.latestStatus ?? "offline",
+    description: a.description ?? `Agent for ${a.name}`,
     capabilities: a.capabilities ?? a.pipelines ?? [],
-    lastSeenAt:   a.lastSeenAt ?? null,
-    metadata:     a.metadata ?? '{}',
-    createdAt:    a.createdAt ?? null,
-    updatedAt:    a.updatedAt ?? null,
+    lastSeenAt: a.lastSeenAt ?? null,
+    metadata: a.metadata ?? "{}",
+    createdAt: a.createdAt ?? null,
+    updatedAt: a.updatedAt ?? null,
   };
 }
 
@@ -85,15 +114,21 @@ function normaliseAgent(a: any): AgentRow {
 
 export default function AgentsPage() {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState('');
-  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
 
-  const { data, loading } = useQuery(LIST_AGENTS_QUERY, {
-    variables: { status: statusFilter || undefined },
-    fetchPolicy: 'cache-and-network',
+  const { data: agentsData, isLoading: loading } = useQuery({
+    queryKey: ["agents", "list", { status: statusFilter }],
+    queryFn: () => {
+      const q = new URLSearchParams();
+      if (statusFilter) q.set("status", statusFilter);
+      return apiClient.get<unknown[]>(`/agents/?${q}`);
+    },
   });
 
-  const rawAgents: AgentRow[] = ((data as any)?.agents ?? []).map(normaliseAgent);
+  const rawAgents: AgentRow[] = (
+    Array.isArray(agentsData) ? agentsData : []
+  ).map(normaliseAgent);
 
   const agents = useMemo(() => {
     let filtered = rawAgents;
@@ -109,13 +144,16 @@ export default function AgentsPage() {
     return filtered;
   }, [rawAgents, search]);
 
-  const onlineCount = rawAgents.filter((a) => a.status === 'online').length;
-  const busyCount   = rawAgents.filter((a) => a.status === 'busy').length;
+  const onlineCount = rawAgents.filter((a) => a.status === "online").length;
+  const busyCount = rawAgents.filter((a) => a.status === "busy").length;
 
   const isLoading = loading && rawAgents.length === 0;
 
   return (
-    <SidebarLayout title="Agents" subtitle="Registered orchestration agents available for use in workflows">
+    <SidebarLayout
+      title="Agents"
+      subtitle="Registered orchestration agents available for use in workflows"
+    >
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
         <Input
@@ -136,10 +174,10 @@ export default function AgentsPage() {
               type="button"
               onClick={() => setStatusFilter(tab.value)}
               className={cn(
-                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                "px-3 py-1 rounded-md text-xs font-medium transition-colors",
                 statusFilter === tab.value
-                  ? 'bg-background text-foreground shadow-sm border border-border'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? "bg-background text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {tab.label}
@@ -147,17 +185,21 @@ export default function AgentsPage() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground shrink-0">
-          {agents.length} agent{agents.length !== 1 ? 's' : ''}
+          {agents.length} agent{agents.length !== 1 ? "s" : ""}
           {onlineCount > 0 && (
             <span className="ml-1.5 inline-flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="text-emerald-600 dark:text-emerald-400">{onlineCount} online</span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {onlineCount} online
+              </span>
             </span>
           )}
           {busyCount > 0 && (
             <span className="ml-1.5 inline-flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-blue-600 dark:text-blue-400">{busyCount} busy</span>
+              <span className="text-blue-600 dark:text-blue-400">
+                {busyCount} busy
+              </span>
             </span>
           )}
         </p>
@@ -174,8 +216,8 @@ export default function AgentsPage() {
           title="No agents found"
           description={
             search || statusFilter
-              ? 'No agents match your filters. Try adjusting your search.'
-              : 'Registered agents will appear here once the orchestrator is connected.'
+              ? "No agents match your filters. Try adjusting your search."
+              : "Registered agents will appear here once the orchestrator is connected."
           }
         />
       ) : (
@@ -184,11 +226,21 @@ export default function AgentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Agent</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">Type</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">Capabilities</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">Last Seen</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">
+                    Agent
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                    Type
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">
+                    Status
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">
+                    Capabilities
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">
+                    Last Seen
+                  </th>
                   <th className="px-4 py-3 w-8" />
                 </tr>
               </thead>

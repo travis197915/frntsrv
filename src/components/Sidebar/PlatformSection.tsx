@@ -27,7 +27,7 @@ interface PlatformSectionProps {
 }
 
 export function PlatformSection({ onNavClick }: PlatformSectionProps) {
-  const { data: items, loading, error } = useNavigation();
+  const { data: items, isLoading: loading, error } = useNavigation();
 
   /**
    * Items with no `section` stay at the top (the "Dashboard" row).
