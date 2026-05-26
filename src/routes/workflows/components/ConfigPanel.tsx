@@ -11,10 +11,8 @@ import {
 } from "../types";
 import { useShapeCatalog } from "./nodes/ShapeCatalogProvider";
 import type { ShapeDefinition, ShapePropertyField } from "@/lib/api";
-import NodeAttachments, {
-  type AttachedSopRule,
-  type AttachedTool,
-} from "./NodeAttachments";
+import NodeAttachments from "./NodeAttachments/NodeAttachments";
+import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 
 interface ConfigPanelProps {
   node: WorkflowNode;

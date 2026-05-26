@@ -204,6 +204,7 @@ function WorkflowBuilderInner() {
   const isNew = !id || id === 'new';
   const [workflowData, setWorkflowData] = useState<{ workflow: WorkflowDetail } | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
+  const canvasLoadedForId = useRef<string | null>(null);
 
   const refetchWorkflow = useCallback(() => {
     if (isNew || !id) return;
@@ -290,30 +291,32 @@ function WorkflowBuilderInner() {
   } = useWorkflowExecution();
 
   // ── Load from API ─────────────────────────────────────────────────────────
+  // Only initialise the canvas once per workflow id. Subsequent workflowData
+  // updates (e.g. refetchWorkflow after SOP attach) refresh metadata/sops but
+  // must not overwrite unsaved canvas changes the user has already made.
   useEffect(() => {
-    if ((workflowData as any)?.workflow) {
-      const wf = (workflowData as any).workflow;
-      // nodes/edges come as JSON strings from the API
-      const nodesStr = wf.nodes ?? '[]';
-      const edgesStr = wf.edges ?? '[]';
+    const wf = (workflowData as any)?.workflow;
+    if (!wf) return;
+    if (canvasLoadedForId.current === wf.id) return;
+    canvasLoadedForId.current = wf.id;
 
-      // Build a WorkflowCanvasJSON-like config string so loadFromJSON can parse it
-      const configJson = JSON.stringify({
-        version: 1,
-        nodes: JSON.parse(nodesStr),
-        edges: JSON.parse(edgesStr),
-      });
+    const nodesStr = wf.nodes ?? '[]';
+    const edgesStr = wf.edges ?? '[]';
+    const configJson = JSON.stringify({
+      version: 1,
+      nodes: JSON.parse(nodesStr),
+      edges: JSON.parse(edgesStr),
+    });
 
-      loadFromJSON(configJson, {
-        id:          wf.id,
-        name:        wf.name,
-        description: wf.description ?? '',
-        status:      wf.status ?? 'idle',
-        createdAt:   wf.createdAt ?? '',
-        updatedAt:   wf.updatedAt ?? '',
-      });
-    }
-  }, [id, workflowData, loadFromJSON]);
+    loadFromJSON(configJson, {
+      id:          wf.id,
+      name:        wf.name,
+      description: wf.description ?? '',
+      status:      wf.status ?? 'idle',
+      createdAt:   wf.createdAt ?? '',
+      updatedAt:   wf.updatedAt ?? '',
+    });
+  }, [workflowData, loadFromJSON]);
 
   // ── Sync live execution errors to the error banner ────────────────────────
   useEffect(() => {

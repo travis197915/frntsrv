@@ -59,21 +59,53 @@ export interface AttachableTool {
   auth_type?: string;
 }
 
+// ── Persisted shape properties (saved on Shape.properties.sop_rules / .tool_calls) ──
+
+export interface AttachedSopRule {
+  key: string;
+  ordering: number;
+  sop_id: number;
+  sop_title: string;
+  source: 'precondition' | 'decision';
+  section_label: string;
+  section_narrative?: string;
+  condition: string;
+  action: string;
+  decision_type: string;
+  codes: string[];
+}
+
 export interface AttachedTool {
-  id: string;
-  tool_id: string;
-  name: string;
+  key?: string;
+  id?: string;
+  tool_id?: string;
+  tool_kind?: 'langchain' | 'api_agent';
   display_name?: string;
   description?: string;
-  tool_kind: "langchain" | "api_agent";
-  kind?: "langchain" | "api_agent";
-  invoke_url?: string;
   args_schema?: Record<string, unknown>;
   args_template?: Record<string, unknown>;
-  endpoint_id?: string;
-  rule_binding_id?: string | null;
   rule_key?: string | null;
-  ordering?: number;
+  rule_binding_id?: string | null;
+  endpoint_id: string;
+  name: string;
+  method: string;
+  url: string;
+}
+
+// ── RulePicker view-model types ───────────────────────────────────────────────
+
+export interface RuleSection {
+  id:         string;
+  sectionKey: string;
+  narrative:  string;
+  rules:      AttachableSopRule[];
+}
+
+export interface SopGroup {
+  sop_id:    number;
+  title:     string;
+  narrative: string;
+  sections:  RuleSection[];
 }
 
 export interface AttachableExclusion {
