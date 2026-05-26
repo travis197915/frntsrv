@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus, X, FileText, Search, Wrench, ShieldCheck, GitBranch, Link2,
   BookOpen, Ban, ExternalLink, FileWarning, CheckSquare, Maximize2,
-  ArrowRight, ArrowLeft,
+  ArrowRight, ArrowLeft, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,8 @@ import {
 
 export interface AttachedSopRule {
   key: string;
+  /** 0-based execution sequence. Lower = runs first. Persisted to NodeRuleBinding.ordering. */
+  ordering: number;
   sop_id: number;
   sop_title: string;
   source: 'precondition' | 'decision';
@@ -882,11 +884,12 @@ function HtmlClickFullscreenModal({
 interface RulePickerProps {
   workflowId: string;
   selectedKeys: Set<string>;
+  existingRules: AttachedSopRule[];
   onClose: () => void;
   onSave: (rules: AttachedSopRule[], tools: AttachedTool[]) => void;
 }
 
-function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerProps) {
+function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }: RulePickerProps) {
   const [data, setData] = useState<WorkflowAttachable | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -1120,6 +1123,25 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
     return m;
   }, [data]);
 
+  // 1-based sequence number for all currently picked rules (existing keep their
+  // position; newly checked rules are appended in picker-list order).
+  const pickedSequences = useMemo(() => {
+    const m = new Map<string, number>();
+    let seq = 1;
+    const existingKeys = new Set(existingRules.map((r) => r.key));
+    // Existing rules that are still selected → keep their order
+    for (const r of existingRules) {
+      if (picked.has(r.key)) m.set(r.key, seq++);
+    }
+    // Newly checked rules (not yet saved) → append after existing
+    for (const key of picked) {
+      if (!existingKeys.has(key) && (key.startsWith('pre:') || key.startsWith('step:'))) {
+        m.set(key, seq++);
+      }
+    }
+    return m;
+  }, [existingRules, picked]);
+
   /** All exclusions, optionally filtered by SOP + search. */
   const filteredExclusions = useMemo(() => {
     if (!data?.exclusions) return [] as AttachableExclusion[];
@@ -1241,20 +1263,41 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
 
   const handleSave = () => {
     if (!data) return;
-    const rules: AttachedSopRule[] = data.sop_rules
-      .filter((r) => picked.has(r.key))
-      .map((r) => ({
-        key: r.key,
-        sop_id: r.sop_id,
-        sop_title: r.sop_title,
-        source: r.source,
-        section_label: r.section_label,
-        section_narrative: r.section_narrative || '',
-        condition: r.condition,
-        action: r.action,
-        decision_type: r.decision_type,
-        codes: r.codes,
-      }));
+
+    // Build a lookup of the full rule data from the picker response.
+    const ruleDataByKey = new Map(data.sop_rules.map((r) => [r.key, r]));
+
+    // Keep existing rules in their current order (preserves any reordering
+    // the user did before reopening the picker). Append newly picked rules
+    // at the end. Drop any that were unchecked.
+    const existingKeys = new Set(existingRules.map((r) => r.key));
+    const ordered: AttachedSopRule[] = [];
+
+    for (const existing of existingRules) {
+      if (picked.has(existing.key)) ordered.push(existing);
+    }
+    for (const key of picked) {
+      if (!existingKeys.has(key) && (key.startsWith('pre:') || key.startsWith('step:'))) {
+        const r = ruleDataByKey.get(key);
+        if (!r) continue;
+        ordered.push({
+          key: r.key,
+          ordering: 0,
+          sop_id: r.sop_id,
+          sop_title: r.sop_title,
+          source: r.source,
+          section_label: r.section_label,
+          section_narrative: r.section_narrative || '',
+          condition: r.condition,
+          action: r.action,
+          decision_type: r.decision_type,
+          codes: r.codes,
+        });
+      }
+    }
+
+    // Re-index so ordering is always 0-based and contiguous.
+    const rules: AttachedSopRule[] = ordered.map((r, i) => ({ ...r, ordering: i }));
     const tools: AttachedTool[] = data.tool_calls
       .filter((t) => picked.has(t.key))
       .map((t) => {
@@ -1447,17 +1490,23 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
                             key={r.key}
                             className={`px-4 py-2 transition-colors flex items-start gap-3 border-b border-border/40 ${isSelected ? 'bg-blue-50/40' : ''} ${isExcluded ? 'opacity-70' : ''}`}
                           >
-                            <button
-                              type="button"
-                              onClick={() => toggle(r.key)}
-                              className="mt-0.5 shrink-0"
-                              aria-label={isSelected ? 'Deselect rule' : 'Select rule'}
-                            >
-                              <input
-                                type="checkbox" checked={isSelected} readOnly
-                                className="h-3.5 w-3.5 rounded border-input"
-                              />
-                            </button>
+                            <div className="flex flex-col items-center gap-0.5 shrink-0 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => toggle(r.key)}
+                                aria-label={isSelected ? 'Deselect rule' : 'Select rule'}
+                              >
+                                <input
+                                  type="checkbox" checked={isSelected} readOnly
+                                  className="h-3.5 w-3.5 rounded border-input"
+                                />
+                              </button>
+                              {isSelected && pickedSequences.has(r.key) && (
+                                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-semibold leading-none select-none">
+                                  {pickedSequences.get(r.key)}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggle(r.key)}>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[r.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -2047,12 +2096,42 @@ function RulePicker({ workflowId, selectedKeys, onClose, onSave }: RulePickerPro
 // ── Attached rule card (chip + collapsible narrative) ────────────────────────
 
 function AttachedRuleCard({
-  rule, onRemove,
-}: { rule: AttachedSopRule; onRemove: (key: string) => void }) {
+  rule, onRemove, onMoveUp, onMoveDown,
+}: {
+  rule: AttachedSopRule;
+  onRemove: (key: string) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+}) {
   const [showCtx, setShowCtx] = useState(false);
   return (
     <li className="border border-border rounded p-2 bg-muted/30">
       <div className="flex items-start gap-2">
+        {/* Sequence badge + reorder controls */}
+        <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
+          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold leading-none select-none">
+            {rule.ordering + 1}
+          </span>
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            className="h-4 w-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Move rule up"
+          >
+            <ChevronUp className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            className="h-4 w-4 flex items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Move rule down"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </div>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
             <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[rule.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -2061,7 +2140,7 @@ function AttachedRuleCard({
             <span className="text-[10px] text-muted-foreground truncate">
               {rule.section_label}
             </span>
-            {rule.codes.slice(0, 3).map((c) => (
+            {(rule.codes ?? []).slice(0, 3).map((c) => (
               <span key={c} className="font-mono text-[10px] px-1 rounded bg-slate-100 text-slate-700">
                 {c}
               </span>
@@ -2123,6 +2202,16 @@ export default function NodeAttachments({
   const removeRule = (key: string) => onChange(rules.filter((r) => r.key !== key), tools);
   const removeTool = (key: string) => onChange(rules, tools.filter((t) => t.key !== key));
 
+  const moveRule = (key: string, dir: 'up' | 'down') => {
+    const idx = rules.findIndex((r) => r.key === key);
+    if (idx === -1) return;
+    const swap = dir === 'up' ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= rules.length) return;
+    const next = [...rules];
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    onChange(next.map((r, i) => ({ ...r, ordering: i })), tools);
+  };
+
   const selectedKeys = useMemo(
     () => new Set<string>([...rules.map((r) => r.key), ...tools.map((t) => t.key)]),
     [rules, tools],
@@ -2149,8 +2238,14 @@ export default function NodeAttachments({
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {rules.map((r) => (
-              <AttachedRuleCard key={r.key} rule={r} onRemove={removeRule} />
+            {rules.map((r, i) => (
+              <AttachedRuleCard
+                key={r.key}
+                rule={r}
+                onRemove={removeRule}
+                onMoveUp={i > 0 ? () => moveRule(r.key, 'up') : undefined}
+                onMoveDown={i < rules.length - 1 ? () => moveRule(r.key, 'down') : undefined}
+              />
             ))}
           </ul>
         )}
@@ -2178,6 +2273,7 @@ export default function NodeAttachments({
         <RulePicker
           workflowId={workflowId}
           selectedKeys={selectedKeys}
+          existingRules={rules}
           onClose={() => setOpen(false)}
           onSave={(r, t) => onChange(r, t)}
         />
