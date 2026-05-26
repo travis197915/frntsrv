@@ -42,7 +42,11 @@ export interface AttachedSopRule {
 }
 
 export interface AttachedTool {
-  key: string;
+  /** Attachable picker key, e.g. `tool:facets_get_summary`. Hydrated DB rows
+   *  may omit this — use {@link toolPickKey} to resolve a stable picker id. */
+  key?: string;
+  /** NodeToolBinding row id when hydrated from the server. */
+  id?: string;
   /** UUID of the agent_tools.Tool row (when sourced from the registry). */
   tool_id?: string;
   /** "langchain" | "api_agent" — set when sourced from the registry. */
@@ -63,6 +67,29 @@ export interface AttachedTool {
   name: string;
   method: string;
   url: string;
+}
+
+/** Stable picker key for a tool row — attachable API rows carry `key`; hydrated
+ *  shape properties carry `name` / `endpoint_id` / binding `id` instead. */
+function toolPickKey(t: {
+  key?: string;
+  name?: string;
+  endpoint_id?: string;
+  id?: string;
+}): string {
+  if (t.key) return t.key;
+  if (t.name) return `tool:${t.name}`;
+  if (t.endpoint_id) return `agent:${t.endpoint_id}`;
+  if (t.id) return `binding:${t.id}`;
+  return '';
+}
+
+function isRulePickKey(key: string | undefined): key is string {
+  return !!key && (key.startsWith('pre:') || key.startsWith('step:'));
+}
+
+function isToolPickKey(key: string | undefined): key is string {
+  return !!key && (key.startsWith('tool:') || key.startsWith('agent:') || key.startsWith('binding:'));
 }
 
 const DECISION_TONE: Record<string, string> = {
@@ -1135,7 +1162,7 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
     }
     // Newly checked rules (not yet saved) → append after existing
     for (const key of picked) {
-      if (!existingKeys.has(key) && (key.startsWith('pre:') || key.startsWith('step:'))) {
+      if (!existingKeys.has(key) && isRulePickKey(key)) {
         m.set(key, seq++);
       }
     }
@@ -1234,7 +1261,7 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
       return next;
     });
     // If we toggled a tool off, drop its rule linkage too.
-    if (key.startsWith('tool:') || key.startsWith('agent:')) {
+    if (isToolPickKey(key)) {
       setPickedToolToRule((prev) => {
         if (!prev.has(key)) return prev;
         const next = new Map(prev);
@@ -1277,7 +1304,7 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
       if (picked.has(existing.key)) ordered.push(existing);
     }
     for (const key of picked) {
-      if (!existingKeys.has(key) && (key.startsWith('pre:') || key.startsWith('step:'))) {
+      if (!existingKeys.has(key) && isRulePickKey(key)) {
         const r = ruleDataByKey.get(key);
         if (!r) continue;
         ordered.push({
@@ -1299,14 +1326,15 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
     // Re-index so ordering is always 0-based and contiguous.
     const rules: AttachedSopRule[] = ordered.map((r, i) => ({ ...r, ordering: i }));
     const tools: AttachedTool[] = data.tool_calls
-      .filter((t) => picked.has(t.key))
+      .filter((t) => picked.has(toolPickKey(t)))
       .map((t) => {
+        const pickKey = toolPickKey(t);
         // For each tool picked, see if the user also focused a specific
         // rule so the binding gets a rule_binding_id once it lands in the
         // DB (NodeToolBinding.rule_binding).
-        const linkedRule = pickedToolToRule.get(t.key) ?? null;
+        const linkedRule = pickedToolToRule.get(pickKey) ?? null;
         return {
-          key:             t.key,
+          key:             pickKey,
           tool_id:         t.tool_id,
           tool_kind:       (t.tool_kind || t.kind) as AttachedTool['tool_kind'],
           display_name:    t.display_name || t.name,
@@ -1325,14 +1353,11 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
   };
 
   const ruleCount = useMemo(
-    () => Array.from(picked).filter((k) => k.startsWith('pre:') || k.startsWith('step:')).length,
+    () => Array.from(picked).filter(isRulePickKey).length,
     [picked],
   );
   const toolCount = useMemo(
-    () =>
-      Array.from(picked).filter(
-        (k) => k.startsWith('agent:') || k.startsWith('tool:'),
-      ).length,
+    () => Array.from(picked).filter(isToolPickKey).length,
     [picked],
   );
 
@@ -1945,14 +1970,15 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
                   </div>
                 )}
                 {filteredTools.map((t) => {
-                  const isSelected = picked.has(t.key);
+                  const pickKey = toolPickKey(t);
+                  const isSelected = picked.has(pickKey);
                   const isLangchain = (t.tool_kind || t.kind) === 'langchain';
                   return (
                     <button
-                      key={t.key}
+                      key={pickKey}
                       type="button"
                       onClick={() => toggleToolForRule(
-                        t.key,
+                        pickKey,
                         focusedRefKey && ruleByKey.has(focusedRefKey)
                           ? focusedRefKey
                           : null,
@@ -1979,9 +2005,9 @@ function RulePicker({ workflowId, selectedKeys, existingRules, onClose, onSave }
                           <span className="text-xs font-medium truncate">
                             {t.display_name || t.name || '(unnamed)'}
                           </span>
-                          {pickedToolToRule.has(t.key) && (
+                          {pickedToolToRule.has(pickKey) && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                              for {pickedToolToRule.get(t.key)}
+                              for {pickedToolToRule.get(pickKey)}
                             </span>
                           )}
                         </div>
@@ -2200,7 +2226,8 @@ export default function NodeAttachments({
   const [open, setOpen] = useState(false);
 
   const removeRule = (key: string) => onChange(rules.filter((r) => r.key !== key), tools);
-  const removeTool = (key: string) => onChange(rules, tools.filter((t) => t.key !== key));
+  const removeTool = (key: string) =>
+    onChange(rules, tools.filter((t) => toolPickKey(t) !== key));
 
   const moveRule = (key: string, dir: 'up' | 'down') => {
     const idx = rules.findIndex((r) => r.key === key);
@@ -2213,7 +2240,11 @@ export default function NodeAttachments({
   };
 
   const selectedKeys = useMemo(
-    () => new Set<string>([...rules.map((r) => r.key), ...tools.map((t) => t.key)]),
+    () =>
+      new Set<string>([
+        ...rules.map((r) => r.key).filter(Boolean),
+        ...tools.map((t) => toolPickKey(t)).filter(Boolean),
+      ]),
     [rules, tools],
   );
 
@@ -2343,10 +2374,11 @@ function GroupedToolsList({ tools, rules, onRemove }: GroupedToolsListProps) {
           </p>
           <ul className="space-y-1.5">
             {group.tools.map((t) => {
+              const pickKey = toolPickKey(t);
               const isLangchain = (t.tool_kind || 'api_agent') === 'langchain';
               return (
                 <li
-                  key={t.key}
+                  key={pickKey}
                   className="border border-border rounded p-2 bg-muted/30 flex items-center gap-2"
                 >
                   <span
@@ -2368,7 +2400,7 @@ function GroupedToolsList({ tools, rules, onRemove }: GroupedToolsListProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => onRemove(t.key)}
+                    onClick={() => onRemove(pickKey)}
                     className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                   >
                     <X className="h-3 w-3" />
