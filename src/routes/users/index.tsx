@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import SearchInput from "@/components/SearchInput";
 import { FormPanel, FormInput } from "@/components/FormPanel";
 import {
   Dialog,
@@ -41,6 +41,7 @@ export default function UsersListPage() {
   const [showAdd, setShowAdd] = useState(false);
 
   const [searchText, setSearchText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const {
     data,
     isLoading: loading,
@@ -73,15 +74,20 @@ export default function UsersListPage() {
     setSearchText(text);
   }, 300);
 
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    debouncedSearch(text);
+  };
+
   return (
     <SidebarLayout title="Users" subtitle="Browse and manage team accounts">
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="max-w-xs w-full">
-            <Input
-              leadingIcon={<Search className="h-4 w-4 shrink-0" aria-hidden />}
+            <SearchInput
+              value={searchQuery}
+              onChange={handleSearchChange}
               placeholder="Search users..."
-              onChange={(e) => debouncedSearch(e.target.value)}
             />
           </div>
           {isAdmin && (

@@ -11,7 +11,7 @@ import {
 } from "../types";
 import { useShapeCatalog } from "./nodes/ShapeCatalogProvider";
 import type { ShapeDefinition, ShapePropertyField } from "@/lib/api";
-import NodeAttachments from "./NodeAttachments/NodeAttachments";
+import NodeAttachments from "./NodeAttachments";
 import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 
 interface ConfigPanelProps {

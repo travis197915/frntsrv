@@ -9,11 +9,11 @@
  *     event.dataTransfer.getData('application/reactflow')
  * which is now `shape:<slug>` instead of one of the old hardcoded enums.
  */
-import { ChevronDown, ChevronRight, GripVertical, Layers, Loader2, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, Layers, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
+import SearchInput from '@/components/SearchInput';
 import type { ShapeDefinition } from '@/lib/api';
 
 import { useShapeCatalog } from './nodes/ShapeCatalogProvider';
@@ -115,15 +115,12 @@ export default function NodePalette(_props: NodePaletteProps) {
       </div>
 
       <div className="px-3 pb-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search shapes…"
-            className="h-8 pl-7 text-xs"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Search shapes…"
+          className="h-8 text-xs"
+        />
       </div>
 
       <Separator />

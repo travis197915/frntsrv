@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Ban, FileWarning, Maximize2, Search } from "lucide-react";
+import { Ban, FileWarning, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import SearchInput from "@/components/SearchInput";
 import type {
   AttachableExclusion,
   WorkflowAttachable,
@@ -203,15 +203,13 @@ export default function ExclusionsTab({
                       </button>
                     );
                   })}
-                  <div className="relative flex-1 min-w-[160px]">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-                    <Input
-                      value={htmlBlockQuery}
-                      onChange={(e) => setHtmlBlockQuery(e.target.value)}
-                      placeholder="Search HTML sections…"
-                      className="h-7 pl-7 text-[11px]"
-                    />
-                  </div>
+                  <SearchInput
+                    value={htmlBlockQuery}
+                    onChange={setHtmlBlockQuery}
+                    placeholder="Search HTML sections…"
+                    wrapperClassName="flex-1 min-w-[160px]"
+                    className="h-7 text-[11px]"
+                  />
                 </div>
               )}
 

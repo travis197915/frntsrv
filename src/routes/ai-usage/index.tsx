@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, DollarSign, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import { DollarSign, Zap, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
 import SidebarLayout from '@/layouts/SidebarLayout';
 import EmptyState from '@/components/EmptyState';
-import { Input } from '@/components/ui/input';
+import SearchInput from '@/components/SearchInput';
 import { cn } from '@/utils/utils';
 import {
   usageRecords,
@@ -185,12 +185,12 @@ export default function AIUsagePage() {
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-        <Input
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           placeholder="Search workflow, run ID, model…"
-          leadingIcon={<Search className="h-4 w-4" />}
-          className="w-full sm:w-[280px] h-8 text-sm"
+          wrapperClassName="w-full sm:w-[280px]"
+          className="h-8 text-sm"
         />
         <p className="text-xs text-muted-foreground shrink-0">
           {rows.length} record{rows.length !== 1 ? 's' : ''}

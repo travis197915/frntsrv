@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Search, Ban } from "lucide-react";
+import { X, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import SearchInput from "@/components/SearchInput";
 import {
   workflowsApi,
   type AttachableExclusion,
@@ -491,21 +491,19 @@ export default function RulePicker({
               )}
             </button>
           </div>
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                tab === "rules"
-                  ? "Search rules, sections, codes…"
-                  : tab === "exclusions"
-                    ? "Search exclusions…"
-                    : "Search tools…"
-              }
-              className="h-8 pl-8 text-xs"
-            />
-          </div>
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder={
+              tab === "rules"
+                ? "Search rules, sections, codes…"
+                : tab === "exclusions"
+                  ? "Search exclusions…"
+                  : "Search tools…"
+            }
+            wrapperClassName="flex-1"
+            className="h-8 text-xs"
+          />
         </div>
 
         {/* SOP filter chips — on rules + exclusions tabs */}

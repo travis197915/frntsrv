@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GitBranch, Plus, Search } from 'lucide-react';
+import { GitBranch, Plus } from 'lucide-react';
 import SidebarLayout from '@/layouts/SidebarLayout';
 import Loader from '@/components/Loader';
 import EmptyState from '@/components/EmptyState';
+import SearchInput from '@/components/SearchInput';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/utils/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -138,13 +138,12 @@ export default function WorkflowsPage() {
 
       {/* Top toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-        {/* Search */}
-        <Input
+        <SearchInput
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={setSearchQuery}
           placeholder="Search workflows..."
-          leadingIcon={<Search className="h-4 w-4" />}
-          className="w-full sm:w-[240px] h-8 text-sm"
+          wrapperClassName="w-full sm:w-[240px]"
+          className="h-8 text-sm"
         />
 
         <Button size="sm" onClick={handleCreateNew} className="shrink-0">

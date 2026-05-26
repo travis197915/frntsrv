@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, ChevronRight, Clock, Activity } from "lucide-react";
+import { ChevronRight, Clock, Activity } from "lucide-react";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import EmptyState from "@/components/EmptyState";
-import { Input } from "@/components/ui/input";
+import SearchInput from "@/components/SearchInput";
 import { cn } from "@/utils/utils";
 import { apiClient } from "@/lib/clients";
 
@@ -197,12 +197,12 @@ export default function ActivityPage() {
     >
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-        <Input
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           placeholder="Search by workflow, run ID, user…"
-          leadingIcon={<Search className="h-4 w-4" />}
-          className="w-full sm:w-[260px] h-8 text-sm"
+          wrapperClassName="w-full sm:w-[260px]"
+          className="h-8 text-sm"
         />
       </div>
 

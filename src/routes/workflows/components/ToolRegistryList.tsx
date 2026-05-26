@@ -9,11 +9,11 @@
  * "Test" + optional select/check action) plus a tiny search filter.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Play, Search, Wrench } from 'lucide-react';
+import { Check, Loader2, Play, Wrench } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import SearchInput from '@/components/SearchInput';
 
 import {
   toolRegistryApi,
@@ -75,15 +75,12 @@ export default function ToolRegistryList({
         </div>
       )}
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search tools…"
-          className="h-8 pl-7 text-xs"
-        />
-      </div>
+      <SearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder="Search tools…"
+        className="h-8 text-xs"
+      />
 
       {tools === null && !loadError && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
