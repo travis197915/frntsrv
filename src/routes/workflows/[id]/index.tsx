@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -9,32 +16,53 @@ import {
   BackgroundVariant,
   PanOnScrollMode,
   Panel,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { ArrowLeft, Save, Loader2, Play, Square, Pencil, Check, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import StatusBadge from '@/components/StatusBadge';
-import { workflowsApi, type WorkflowDetail } from '@/lib/workflowsApi';
-import { useWorkflowCanvas, type RFEdgeType } from '../hooks/useWorkflowCanvas';
-import { useWorkflowUiColors } from '../hooks/useWorkflowUiColors';
-import { nodeTypes } from '../components/nodes/nodeTypes';
-import NodePalette from '../components/NodePalette';
-import ConfigPanel from '../components/ConfigPanel';
-import WorkflowContextPanel from '../components/WorkflowContextPanel';
-import { ShapeCatalogProvider, useShapeCatalog } from '../components/nodes/ShapeCatalogProvider';
-import { NODE_TYPE_CONFIG } from '../types';
-import { useWorkflowExecution } from '../execution/useWorkflowExecution';
-import { applyExecutionToNodes, applyExecutionToEdges } from '../execution/ExecutionOverlay';
-import ExecutionOverlay from '../execution/ExecutionOverlay';
-import ExecutionPanel from '../execution/ExecutionPanel';
-import ExecutionToolbar from '../execution/ExecutionToolbar';
+} from "@xyflow/react";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import "@xyflow/react/dist/style.css";
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Play,
+  Square,
+  Pencil,
+  Check,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import StatusBadge from "@/components/StatusBadge";
+import { workflowsApi, type WorkflowDetail } from "@/lib/workflowsApi";
+import { useWorkflowCanvas, type RFEdgeType } from "../hooks/useWorkflowCanvas";
+import { useWorkflowUiColors } from "../hooks/useWorkflowUiColors";
+import { nodeTypes } from "../components/nodes/nodeTypes";
+import NodePalette from "../components/NodePalette";
+import ConfigPanel from "../components/ConfigPanel";
+import WorkflowContextPanel from "../components/WorkflowContextPanel";
+import {
+  ShapeCatalogProvider,
+  useShapeCatalog,
+} from "../components/nodes/ShapeCatalogProvider";
+import { NODE_TYPE_CONFIG } from "../types";
+import { useWorkflowExecution } from "../execution/useWorkflowExecution";
+import {
+  applyExecutionToNodes,
+  applyExecutionToEdges,
+} from "../execution/ExecutionOverlay";
+import ExecutionOverlay from "../execution/ExecutionOverlay";
+import ExecutionPanel from "../execution/ExecutionPanel";
+import ExecutionToolbar from "../execution/ExecutionToolbar";
+import WorkflowBuilderLoading from "./loading";
 
 // ── Edge type picker ──────────────────────────────────────────────────────────
 const EDGE_TYPES: { id: RFEdgeType; label: string; title: string }[] = [
-  { id: 'default',    label: 'Bezier',   title: 'Bezier curve (default)'   },
-  { id: 'straight',   label: 'Straight', title: 'Straight line'            },
-  { id: 'step',       label: 'Step',     title: 'Right-angle step'         },
-  { id: 'smoothstep', label: 'Smooth',   title: 'Rounded step (smoothstep)'},
+  { id: "default", label: "Bezier", title: "Bezier curve (default)" },
+  { id: "straight", label: "Straight", title: "Straight line" },
+  { id: "step", label: "Step", title: "Right-angle step" },
+  { id: "smoothstep", label: "Smooth", title: "Rounded step (smoothstep)" },
 ];
 
 function EdgeTypePicker({
@@ -48,16 +76,24 @@ function EdgeTypePicker({
     <Panel position="top-center">
       <div
         style={{
-          display: 'flex',
+          display: "flex",
           gap: 2,
-          background: 'var(--card, #fff)',
-          border: '1px solid var(--border, #e2e8f0)',
+          background: "var(--card, #fff)",
+          border: "1px solid var(--border, #e2e8f0)",
           borderRadius: 8,
-          padding: '3px 4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          padding: "3px 4px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
         }}
       >
-        <span style={{ fontSize: 10, color: 'var(--muted-foreground, #71717a)', alignSelf: 'center', paddingRight: 6, paddingLeft: 2 }}>
+        <span
+          style={{
+            fontSize: 10,
+            color: "var(--muted-foreground, #71717a)",
+            alignSelf: "center",
+            paddingRight: 6,
+            paddingLeft: 2,
+          }}
+        >
           Edge
         </span>
         {EDGE_TYPES.map((et) => (
@@ -69,17 +105,17 @@ function EdgeTypePicker({
             style={{
               fontSize: 11,
               fontWeight: active === et.id ? 600 : 400,
-              padding: '3px 10px',
+              padding: "3px 10px",
               borderRadius: 6,
-              border: 'none',
-              cursor: 'pointer',
-              background: active === et.id
-                ? 'var(--primary, #3b82f6)'
-                : 'transparent',
-              color: active === et.id
-                ? 'var(--primary-foreground, #fff)'
-                : 'var(--foreground, #0f172a)',
-              transition: 'background 0.15s, color 0.15s',
+              border: "none",
+              cursor: "pointer",
+              background:
+                active === et.id ? "var(--primary, #3b82f6)" : "transparent",
+              color:
+                active === et.id
+                  ? "var(--primary-foreground, #fff)"
+                  : "var(--foreground, #0f172a)",
+              transition: "background 0.15s, color 0.15s",
             }}
           >
             {et.label}
@@ -103,7 +139,9 @@ function EdgeInspector({
   const [draft, setDraft] = useState(currentLabel);
 
   // sync when a different edge is selected
-  useEffect(() => { setDraft(currentLabel); }, [edgeId, currentLabel]);
+  useEffect(() => {
+    setDraft(currentLabel);
+  }, [edgeId, currentLabel]);
 
   const commit = () => onLabel(edgeId, draft.trim());
 
@@ -111,39 +149,61 @@ function EdgeInspector({
     <Panel position="top-right">
       <div
         style={{
-          background: 'var(--card, #fff)',
-          border: '1px solid var(--border, #e2e8f0)',
+          background: "var(--card, #fff)",
+          border: "1px solid var(--border, #e2e8f0)",
           borderRadius: 10,
-          padding: '10px 12px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+          padding: "10px 12px",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
           minWidth: 200,
-          display: 'flex',
-          flexDirection: 'column',
+          display: "flex",
+          flexDirection: "column",
           gap: 8,
         }}
       >
-        <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: 'var(--muted-foreground, #71717a)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--muted-foreground, #71717a)",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          }}
+        >
           Edge label
         </p>
 
         {/* Quick labels */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {['Yes', 'No'].map((opt) => (
+        <div style={{ display: "flex", gap: 6 }}>
+          {["Yes", "No"].map((opt) => (
             <button
               key={opt}
               type="button"
-              onClick={() => { setDraft(opt); onLabel(edgeId, opt); }}
+              onClick={() => {
+                setDraft(opt);
+                onLabel(edgeId, opt);
+              }}
               style={{
                 flex: 1,
-                padding: '4px 0',
+                padding: "4px 0",
                 borderRadius: 6,
-                border: '1px solid var(--border, #e2e8f0)',
-                background: draft === opt ? (opt === 'Yes' ? '#dcfce7' : '#fee2e2') : 'transparent',
-                color: draft === opt ? (opt === 'Yes' ? '#15803d' : '#dc2626') : 'var(--foreground, #0f172a)',
+                border: "1px solid var(--border, #e2e8f0)",
+                background:
+                  draft === opt
+                    ? opt === "Yes"
+                      ? "#dcfce7"
+                      : "#fee2e2"
+                    : "transparent",
+                color:
+                  draft === opt
+                    ? opt === "Yes"
+                      ? "#15803d"
+                      : "#dc2626"
+                    : "var(--foreground, #0f172a)",
                 fontWeight: 600,
                 fontSize: 12,
-                cursor: 'pointer',
-                transition: 'background 0.15s',
+                cursor: "pointer",
+                transition: "background 0.15s",
               }}
             >
               {opt}
@@ -151,15 +211,18 @@ function EdgeInspector({
           ))}
           <button
             type="button"
-            onClick={() => { setDraft(''); onLabel(edgeId, ''); }}
+            onClick={() => {
+              setDraft("");
+              onLabel(edgeId, "");
+            }}
             style={{
-              padding: '4px 8px',
+              padding: "4px 8px",
               borderRadius: 6,
-              border: '1px solid var(--border, #e2e8f0)',
-              background: 'transparent',
-              color: 'var(--muted-foreground, #71717a)',
+              border: "1px solid var(--border, #e2e8f0)",
+              background: "transparent",
+              color: "var(--muted-foreground, #71717a)",
               fontSize: 11,
-              cursor: 'pointer',
+              cursor: "pointer",
             }}
           >
             Clear
@@ -171,19 +234,23 @@ function EdgeInspector({
           type="text"
           value={draft}
           placeholder="Custom label…"
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setDraft(e.target.value)
+          }
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+          }}
           style={{
-            width: '100%',
-            padding: '5px 8px',
-            border: '1px solid var(--border, #e2e8f0)',
+            width: "100%",
+            padding: "5px 8px",
+            border: "1px solid var(--border, #e2e8f0)",
             borderRadius: 6,
             fontSize: 12,
-            background: 'var(--background, #f8fafc)',
-            color: 'var(--foreground, #0f172a)',
-            outline: 'none',
-            boxSizing: 'border-box',
+            background: "var(--background, #f8fafc)",
+            color: "var(--foreground, #0f172a)",
+            outline: "none",
+            boxSizing: "border-box",
           }}
         />
       </div>
@@ -201,8 +268,10 @@ function WorkflowBuilderInner() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   // ── Corebackend: load workflow ─────────────────────────────────────────────
-  const isNew = !id || id === 'new';
-  const [workflowData, setWorkflowData] = useState<{ workflow: WorkflowDetail } | null>(null);
+  const isNew = !id || id === "new";
+  const [workflowData, setWorkflowData] = useState<{
+    workflow: WorkflowDetail;
+  } | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const canvasLoadedForId = useRef<string | null>(null);
 
@@ -258,13 +327,13 @@ function WorkflowBuilderInner() {
   } = useWorkflowCanvas(id, {
     shapeCatalog,
     onSave: async ({ id: wfId, name, description, nodesJson, edgesJson }) => {
-      if (!wfId || wfId === 'new') {
+      if (!wfId || wfId === "new") {
         const created = await workflowsApi.create({
           name,
           description,
           isActive: true,
-          nodes:    nodesJson,
-          edges:    edgesJson,
+          nodes: nodesJson,
+          edges: edgesJson,
         });
         navigate(`/workflows/${created.id}`, { replace: true });
         return { id: created.id };
@@ -273,8 +342,8 @@ function WorkflowBuilderInner() {
         name,
         description,
         isActive: true,
-        nodes:    nodesJson,
-        edges:    edgesJson,
+        nodes: nodesJson,
+        edges: edgesJson,
       });
       return { id: wfId };
     },
@@ -300,8 +369,8 @@ function WorkflowBuilderInner() {
     if (canvasLoadedForId.current === wf.id) return;
     canvasLoadedForId.current = wf.id;
 
-    const nodesStr = wf.nodes ?? '[]';
-    const edgesStr = wf.edges ?? '[]';
+    const nodesStr = wf.nodes ?? "[]";
+    const edgesStr = wf.edges ?? "[]";
     const configJson = JSON.stringify({
       version: 1,
       nodes: JSON.parse(nodesStr),
@@ -309,18 +378,18 @@ function WorkflowBuilderInner() {
     });
 
     loadFromJSON(configJson, {
-      id:          wf.id,
-      name:        wf.name,
-      description: wf.description ?? '',
-      status:      wf.status ?? 'idle',
-      createdAt:   wf.createdAt ?? '',
-      updatedAt:   wf.updatedAt ?? '',
+      id: wf.id,
+      name: wf.name,
+      description: wf.description ?? "",
+      status: wf.status ?? "idle",
+      createdAt: wf.createdAt ?? "",
+      updatedAt: wf.updatedAt ?? "",
     });
   }, [workflowData, loadFromJSON]);
 
   // ── Sync live execution errors to the error banner ────────────────────────
   useEffect(() => {
-    if (execution.isLive && execution.error && execution.status === 'failed') {
+    if (execution.isLive && execution.error && execution.status === "failed") {
       setExecutionError(execution.error);
     }
   }, [execution.isLive, execution.error, execution.status]);
@@ -328,24 +397,24 @@ function WorkflowBuilderInner() {
   // ── Keyboard save ─────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         if (isDirty && !isSaving && !isExecutionMode) saveWorkflow();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [isDirty, isSaving, saveWorkflow, isExecutionMode]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
         e.preventDefault();
-        e.returnValue = '';
+        e.returnValue = "";
       }
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
   useEffect(() => {
@@ -358,7 +427,7 @@ function WorkflowBuilderInner() {
   // ── Execution: static demo ─────────────────────────────────────────────────
   // ── Execution: live API ────────────────────────────────────────────────────
   const handleStartLiveExecution = useCallback(async () => {
-    if (!id || id === 'new') return;
+    if (!id || id === "new") return;
     setIsExecutionMode(true);
     setSelectedNodeId(null);
     setExecutionError(null);
@@ -366,7 +435,7 @@ function WorkflowBuilderInner() {
     try {
       await startLiveExecution(id);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Execution failed';
+      const msg = err instanceof Error ? err.message : "Execution failed";
       setExecutionError(msg);
       setIsExecutionMode(false);
     }
@@ -387,9 +456,9 @@ function WorkflowBuilderInner() {
 
   const handleClosePanel = useCallback(() => {
     if (
-      execution.status === 'completed' ||
-      execution.status === 'failed' ||
-      execution.status === 'cancelled'
+      execution.status === "completed" ||
+      execution.status === "failed" ||
+      execution.status === "cancelled"
     ) {
       setIsExecutionMode(false);
       setExecutionError(null);
@@ -408,49 +477,56 @@ function WorkflowBuilderInner() {
   );
 
   const executionNodeCount = useMemo(
-    () => nodes.filter((n) => n.type !== 'workarea').length,
+    () => nodes.filter((n) => n.type !== "workarea").length,
     [nodes],
   );
   const hasWorkArea = useMemo(
-    () => nodes.some((n) => n.type === 'workarea'),
+    () => nodes.some((n) => n.type === "workarea"),
     [nodes],
   );
 
-  const miniMapNodeColor = useCallback((node: { data?: { nodeType?: string } }) => {
-    if (node.data?.nodeType === 'workarea') return 'rgba(99, 102, 241, 0.12)';
-    return ui.mutedForeground;
-  }, [ui.mutedForeground]);
+  const miniMapNodeColor = useCallback(
+    (node: { data?: { nodeType?: string } }) => {
+      if (node.data?.nodeType === "workarea") return "rgba(99, 102, 241, 0.12)";
+      return ui.mutedForeground;
+    },
+    [ui.mutedForeground],
+  );
 
-  const miniMapNodeStrokeColor = useCallback((node: { data?: { nodeType?: string } }) => {
-    if (node.data?.nodeType === 'workarea') return NODE_TYPE_CONFIG.workarea.color;
-    return 'transparent';
-  }, []);
+  const miniMapNodeStrokeColor = useCallback(
+    (node: { data?: { nodeType?: string } }) => {
+      if (node.data?.nodeType === "workarea")
+        return NODE_TYPE_CONFIG.workarea.color;
+      return "transparent";
+    },
+    [],
+  );
 
   const defaultEdgeOptions = useMemo(
     () => ({
       type: edgeType,
-      markerEnd: { type: 'arrowclosed' as const, color: ui.mutedForeground || '#71717a' },
-      style:     { stroke: ui.mutedForeground || '#71717a', strokeWidth: 2 },
+      markerEnd: {
+        type: "arrowclosed" as const,
+        color: ui.mutedForeground || "#71717a",
+      },
+      style: { stroke: ui.mutedForeground || "#71717a", strokeWidth: 2 },
     }),
     [edgeType, ui.mutedForeground],
   );
 
   const connectionLineStyle = useMemo(
-    () => ({ stroke: ui.mutedForeground || 'var(--muted-foreground)', strokeWidth: 2 }),
+    () => ({
+      stroke: ui.mutedForeground || "var(--muted-foreground)",
+      strokeWidth: 2,
+    }),
     [ui.mutedForeground],
   );
 
   const dotColor =
-    ui.theme === 'dark'
-      ? 'oklch(0.35 0.02 250)'
-      : 'oklch(0.78 0.02 250)';
+    ui.theme === "dark" ? "oklch(0.35 0.02 250)" : "oklch(0.78 0.02 250)";
 
   if (workflowLoading && !isNew) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <WorkflowBuilderLoading />;
   }
 
   const canExecute = !isNew;
@@ -466,7 +542,7 @@ function WorkflowBuilderInner() {
               if (isExecutionMode) {
                 handleStopExecution();
               } else {
-                navigate('/workflows');
+                navigate("/workflows");
               }
             }}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
@@ -484,7 +560,7 @@ function WorkflowBuilderInner() {
                   onChange={(e) => updateWorkflowMeta({ name: e.target.value })}
                   onBlur={() => setIsEditingName(false)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === 'Escape') {
+                    if (e.key === "Enter" || e.key === "Escape") {
                       setIsEditingName(false);
                     }
                   }}
@@ -504,9 +580,9 @@ function WorkflowBuilderInner() {
               <>
                 <p
                   className="max-w-[280px] text-sm font-semibold text-foreground truncate"
-                  title={workflowMeta.name || 'Untitled Workflow'}
+                  title={workflowMeta.name || "Untitled Workflow"}
                 >
-                  {workflowMeta.name || 'Untitled Workflow'}
+                  {workflowMeta.name || "Untitled Workflow"}
                 </p>
                 {!isExecutionMode && (
                   <button
@@ -522,7 +598,9 @@ function WorkflowBuilderInner() {
             )}
           </div>
 
-          <StatusBadge status={isExecutionMode ? execution.status : workflowMeta.status} />
+          <StatusBadge
+            status={isExecutionMode ? execution.status : workflowMeta.status}
+          />
 
           {isDirty && !isExecutionMode && (
             <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10">
@@ -540,7 +618,9 @@ function WorkflowBuilderInner() {
         <div className="flex items-center gap-2">
           {isExecutionMode ? (
             <div className="flex items-center gap-2">
-              {(execution.status === 'completed' || execution.status === 'failed' || execution.status === 'cancelled') ? (
+              {execution.status === "completed" ||
+              execution.status === "failed" ||
+              execution.status === "cancelled" ? (
                 <>
                   <Button
                     size="sm"
@@ -615,116 +695,148 @@ function WorkflowBuilderInner() {
         </div>
       )}
 
-      {/* Main area */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {!isExecutionMode && <NodePalette hasWorkArea={hasWorkArea} />}
-
-        {/* Canvas */}
-        <div className="flex-1 min-w-0 bg-muted/30">
-          <ReactFlow
-            nodes={displayNodes}
-            edges={displayEdges}
-            onNodesChange={isExecutionMode ? undefined : onNodesChange}
-            onEdgesChange={isExecutionMode ? undefined : onEdgesChange}
-            onConnect={isExecutionMode ? undefined : onConnect}
-            onDrop={isExecutionMode ? undefined : onDrop}
-            onDragOver={isExecutionMode ? undefined : onDragOver}
-            onNodeClick={isExecutionMode ? undefined : onNodeClick}
-            onEdgeClick={isExecutionMode ? undefined : onEdgeClick}
-            onPaneClick={isExecutionMode ? undefined : onPaneClick}
-            nodeTypes={nodeTypes}
-            defaultEdgeOptions={defaultEdgeOptions}
-            snapToGrid={!isExecutionMode}
-            snapGrid={[20, 20]}
-            fitView
-            fitViewOptions={{ padding: 0.3 }}
-            panOnScroll
-            panOnScrollMode={PanOnScrollMode.Free}
-            zoomOnScroll={false}
-            zoomOnPinch
-            connectionLineStyle={connectionLineStyle}
-            proOptions={{ hideAttribution: true }}
-            className="workflow-canvas"
-            nodesDraggable={!isExecutionMode}
-            nodesConnectable={!isExecutionMode}
-            elementsSelectable={!isExecutionMode}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={20}
-              size={1.5}
-              color={dotColor}
-            />
-            <MiniMap
-              nodeColor={miniMapNodeColor}
-              nodeStrokeColor={miniMapNodeStrokeColor}
-              nodeStrokeWidth={2}
-              nodeBorderRadius={4}
-              maskColor={ui.minimapMask}
-              maskStrokeColor="none"
-              style={{ width: 180, height: 130 }}
-              className="bg-card/90! backdrop-blur-sm! border-border! border rounded-lg! shadow-md!"
-              pannable
-              zoomable
-            />
-            <Controls
-              showInteractive={false}
-              className="bg-card! border-border! border shadow-sm! [&>button]:bg-background! [&>button]:border-border! [&>button]:text-muted-foreground! [&>button:hover]:bg-muted! [&>button]:fill-muted-foreground!"
-            />
-
-            {!isExecutionMode && (
-              <EdgeTypePicker active={edgeType} onChange={changeEdgeType} />
-            )}
-
-            {!isExecutionMode && selectedEdge && (
-              <EdgeInspector
-                edgeId={selectedEdge.id}
-                currentLabel={typeof selectedEdge.label === 'string' ? selectedEdge.label : ''}
-                onLabel={labelEdge}
-              />
-            )}
-
-            {isExecutionMode && (
-              <ExecutionOverlay
-                execution={execution}
-                nodes={nodes}
-                onSubmitInteraction={submitInteraction}
-              />
-            )}
-          </ReactFlow>
-        </div>
-
-        {/* Right panel */}
-        {isExecutionMode ? (
-          <ExecutionPanel
-            execution={execution}
-            nodes={nodes}
-            onSubmitInteraction={submitInteraction}
-            onSubmitPreflightInput={submitPreflightInput}
-            onSubmitSopInput={submitSopInput}
-            onClose={handleClosePanel}
-          />
-        ) : selectedNode ? (
-          <ConfigPanel
-            node={selectedNode}
-            onUpdate={updateNodeData}
-            onDelete={deleteNode}
-            onClose={() => setSelectedNodeId(null)}
-            workflowId={isNew ? undefined : id}
-          />
-        ) : (
-          !isNew && id ? (
-            <WorkflowContextPanel
-              workflowId={id}
-              workflowName={workflowMeta.name}
-              workflowDescription={workflowMeta.description ?? ''}
-              sops={workflowData?.workflow?.sops ?? []}
-              agents={workflowData?.workflow?.agents ?? []}
-              onAttached={refetchWorkflow}
-            />
-          ) : null
+      {/* Main area — flat 3-panel layout so sidebars are fully independent */}
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex-1 min-h-0 overflow-hidden"
+      >
+        {/* NodePalette — left sidebar, hidden in execution mode */}
+        {!isExecutionMode && (
+          <>
+            <ResizablePanel
+              defaultSize={100}
+              minSize={250}
+              maxSize={350}
+              className="flex flex-col overflow-hidden"
+            >
+              <NodePalette hasWorkArea={hasWorkArea} />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+          </>
         )}
-      </div>
+
+        {/* Canvas — always present, absorbs all drag from both sides */}
+        <ResizablePanel minSize={30} className="flex min-w-0">
+          <div className="flex-1 min-w-0 bg-muted/30">
+            <ReactFlow
+              nodes={displayNodes}
+              edges={displayEdges}
+              onNodesChange={isExecutionMode ? undefined : onNodesChange}
+              onEdgesChange={isExecutionMode ? undefined : onEdgesChange}
+              onConnect={isExecutionMode ? undefined : onConnect}
+              onDrop={isExecutionMode ? undefined : onDrop}
+              onDragOver={isExecutionMode ? undefined : onDragOver}
+              onNodeClick={isExecutionMode ? undefined : onNodeClick}
+              onEdgeClick={isExecutionMode ? undefined : onEdgeClick}
+              onPaneClick={isExecutionMode ? undefined : onPaneClick}
+              nodeTypes={nodeTypes}
+              defaultEdgeOptions={defaultEdgeOptions}
+              snapToGrid={!isExecutionMode}
+              snapGrid={[20, 20]}
+              fitView
+              fitViewOptions={{ padding: 0.3 }}
+              panOnScroll
+              panOnScrollMode={PanOnScrollMode.Free}
+              zoomOnScroll={false}
+              zoomOnPinch
+              connectionLineStyle={connectionLineStyle}
+              proOptions={{ hideAttribution: true }}
+              className="workflow-canvas"
+              nodesDraggable={!isExecutionMode}
+              nodesConnectable={!isExecutionMode}
+              elementsSelectable={!isExecutionMode}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={20}
+                size={1.5}
+                color={dotColor}
+              />
+              <MiniMap
+                nodeColor={miniMapNodeColor}
+                nodeStrokeColor={miniMapNodeStrokeColor}
+                nodeStrokeWidth={2}
+                nodeBorderRadius={4}
+                maskColor={ui.minimapMask}
+                maskStrokeColor="none"
+                style={{ width: 180, height: 130 }}
+                className="bg-card/90! backdrop-blur-sm! border-border! border rounded-lg! shadow-md!"
+                pannable
+                zoomable
+              />
+              <Controls
+                showInteractive={false}
+                className="bg-card! border-border! border shadow-sm! [&>button]:bg-background! [&>button]:border-border! [&>button]:text-muted-foreground! [&>button:hover]:bg-muted! [&>button]:fill-muted-foreground!"
+              />
+
+              {!isExecutionMode && (
+                <EdgeTypePicker active={edgeType} onChange={changeEdgeType} />
+              )}
+
+              {!isExecutionMode && selectedEdge && (
+                <EdgeInspector
+                  edgeId={selectedEdge.id}
+                  currentLabel={
+                    typeof selectedEdge.label === "string"
+                      ? selectedEdge.label
+                      : ""
+                  }
+                  onLabel={labelEdge}
+                />
+              )}
+
+              {isExecutionMode && (
+                <ExecutionOverlay
+                  execution={execution}
+                  nodes={nodes}
+                  onSubmitInteraction={submitInteraction}
+                />
+              )}
+            </ReactFlow>
+          </div>
+        </ResizablePanel>
+
+        {/* Right panel — config / execution, only shown when there's content */}
+        {(isExecutionMode || selectedNode || (!isNew && id)) && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel
+              defaultSize={100}
+              minSize={320}
+              maxSize={450}
+              className="flex flex-col overflow-hidden"
+            >
+              {isExecutionMode ? (
+                <ExecutionPanel
+                  execution={execution}
+                  nodes={nodes}
+                  onSubmitInteraction={submitInteraction}
+                  onSubmitPreflightInput={submitPreflightInput}
+                  onSubmitSopInput={submitSopInput}
+                  onClose={handleClosePanel}
+                />
+              ) : selectedNode ? (
+                <ConfigPanel
+                  node={selectedNode}
+                  onUpdate={updateNodeData}
+                  onDelete={deleteNode}
+                  onClose={() => setSelectedNodeId(null)}
+                  workflowId={isNew ? undefined : id}
+                />
+              ) : !isNew && id ? (
+                <WorkflowContextPanel
+                  workflowId={id}
+                  workflowName={workflowMeta.name}
+                  workflowDescription={workflowMeta.description ?? ""}
+                  sops={workflowData?.workflow?.sops ?? []}
+                  agents={workflowData?.workflow?.agents ?? []}
+                  onAttached={refetchWorkflow}
+                />
+              ) : null}
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
 
       {/* Execution: floating toolbar */}
       {isExecutionMode && (

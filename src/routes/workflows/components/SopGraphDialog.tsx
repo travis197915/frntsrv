@@ -1,5 +1,10 @@
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 import SopGraphCanvas from './SopGraphCanvas';
 import SopSectionsPanel from './SopSectionsPanel';
 
@@ -36,20 +41,33 @@ export default function SopGraphDialog({
         </div>
 
         {/* Body — graph (left) + sections (right) */}
-        <div className="flex-1 min-h-0 flex">
-          <div className="flex-1 min-w-0 bg-muted/20">
-            {jobId && auditSopId ? (
-              <SopGraphCanvas jobId={jobId} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground p-6 text-center">
-                The SOP graph is not ready yet.<br />
-                Once ingestion finishes the graph will appear here.
-              </div>
-            )}
-          </div>
-          {jobId && auditSopId && (
-            <div className="w-[460px] shrink-0 border-l border-border">
-              <SopSectionsPanel jobId={jobId} />
+        <div className="flex-1 min-h-0">
+          {jobId && auditSopId ? (
+            <ResizablePanelGroup
+              direction="horizontal"
+              className="h-full min-h-0 overflow-hidden"
+            >
+              <ResizablePanel defaultSize={100} minSize={35} className="min-w-0">
+                <div className="h-full bg-muted/20">
+                  <SopGraphCanvas jobId={jobId} />
+                </div>
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              <ResizablePanel
+                defaultSize={100}
+                minSize={100}
+                maxSize={650}
+                className="min-w-0"
+              >
+                <SopSectionsPanel jobId={jobId} />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground p-6 text-center bg-muted/20">
+              The SOP graph is not ready yet.<br />
+              Once ingestion finishes the graph will appear here.
             </div>
           )}
         </div>

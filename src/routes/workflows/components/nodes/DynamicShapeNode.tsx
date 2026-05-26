@@ -18,6 +18,13 @@ const HANDLE_STYLE: React.CSSProperties = {
   border: '2px solid #94a3b8',
 };
 
+const HANDLE_POSITIONS = [
+  { position: Position.Top, id: 'top' },
+  { position: Position.Bottom, id: 'bottom' },
+  { position: Position.Left, id: 'left' },
+  { position: Position.Right, id: 'right' },
+] as const;
+
 export function DynamicShapeNode({ data, selected, width, height }: NodeProps<DynamicShapeNodeType>) {
   const catalog = useShapeCatalog();
   const def = useMemo(
@@ -38,13 +45,10 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
   const color  = styleMap.color  ?? '#0f172a';
   const accent = styleMap.accent ?? border;
 
-  const handleStyle = { ...HANDLE_STYLE, borderColor: border };
+  const handleStyle = { ...HANDLE_STYLE, borderColor: border, zIndex: 1 };
 
   return (
     <>
-      <Handle type="target" position={Position.Top}    id="top"    style={handleStyle} />
-      <Handle type="target" position={Position.Left}   id="left"   style={handleStyle} />
-
       <div
         style={{
           width: w,
@@ -61,12 +65,7 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
           cursor: 'default',
         }}
       >
-        {/* accent stripe */}
-        <span style={{
-          position: 'absolute', left: 0, top: 0, width: 4, height: '100%',
-          background: accent, borderRadius: '6px 0 0 6px',
-        }} />
-        <div style={{ padding: '0 12px 0 16px', textAlign: 'center' }}>
+        <div style={{ padding: '0 12px', textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color, lineHeight: 1.4 }}>
             {label}
           </p>
@@ -78,8 +77,22 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
         </div>
       </div>
 
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle} />
-      <Handle type="source" position={Position.Right}  id="right"  style={handleStyle} />
+      {HANDLE_POSITIONS.flatMap(({ position, id }) => [
+        <Handle
+          key={`${id}-target`}
+          type="target"
+          position={position}
+          id={`${id}-target`}
+          style={handleStyle}
+        />,
+        <Handle
+          key={`${id}-source`}
+          type="source"
+          position={position}
+          id={`${id}-source`}
+          style={handleStyle}
+        />,
+      ])}
     </>
   );
 }

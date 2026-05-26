@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -8,13 +8,14 @@ import {
   MiniMap,
   MarkerType,
   Panel,
+  useReactFlow,
   type Edge,
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from '@dagrejs/dagre';
-import { Loader2 } from 'lucide-react';
 import { ingestApi, type SopGraphResponse, type SopGraphNode, type SopGraphEdge } from '@/lib/api';
+import { SopGraphCanvasLoading } from './SopGraphLoading';
 
 // ── Node-type palette (mirrors the cytoscape viewer) ──────────────────────────
 const TYPE_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
@@ -117,6 +118,138 @@ interface SopGraphCanvasProps {
   jobId: string;
 }
 
+function FitViewHelper({
+  containerRef,
+  triggerKey,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  triggerKey: string;
+}) {
+  const { fitView } = useReactFlow();
+
+  const refit = useCallback(() => {
+    requestAnimationFrame(() => {
+      void fitView({ padding: 0.15, duration: 0 });
+    });
+  }, [fitView]);
+
+  useEffect(() => {
+    refit();
+    const t = window.setTimeout(refit, 150);
+    return () => clearTimeout(t);
+  }, [triggerKey, refit]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timeout);
+      timeout = setTimeout(refit, 100);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      clearTimeout(timeout);
+    };
+  }, [containerRef, refit]);
+
+  return null;
+}
+
+interface SopGraphFlowProps {
+  nodes: Node[];
+  edges: Edge[];
+  direction: 'TB' | 'LR';
+  setDirection: (d: 'TB' | 'LR') => void;
+  nodeCount: number;
+  edgeCount: number;
+  presentTypes: string[];
+}
+
+function SopGraphFlow({
+  nodes,
+  edges,
+  direction,
+  setDirection,
+  nodeCount,
+  edgeCount,
+  presentTypes,
+}: SopGraphFlowProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div ref={containerRef} className="h-full w-full">
+      <ReactFlow
+        className="h-full w-full"
+        nodes={nodes}
+        edges={edges}
+        proOptions={{ hideAttribution: true }}
+        nodesDraggable
+        nodesConnectable={false}
+        elementsSelectable
+        minZoom={0.05}
+        maxZoom={2.5}
+        defaultEdgeOptions={{ type: 'smoothstep' }}
+      >
+        <FitViewHelper
+          containerRef={containerRef}
+          triggerKey={`${nodeCount}:${edgeCount}:${direction}`}
+        />
+        <Background variant={BackgroundVariant.Dots} gap={45} size={1} color="#e2e8f0" />
+        <Controls showInteractive={false} />
+        <MiniMap pannable zoomable nodeStrokeWidth={1} style={{ width: 180, height: 120 }} />
+
+        <Panel position="top-left">
+          <div className="flex gap-1 bg-background border border-border rounded-md p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setDirection('LR')}
+              className={`text-xs px-2 py-1 rounded ${
+                direction === 'LR' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Top-Down
+            </button>
+            <button
+              type="button"
+              onClick={() => setDirection('TB')}
+              className={`text-xs px-2 py-1 rounded ${
+                direction === 'TB' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Left-Right
+            </button>
+          </div>
+        </Panel>
+
+        <Panel position="top-right">
+          <div className="bg-background border border-border rounded-md p-2 shadow-sm max-w-[260px]">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
+              {nodeCount} nodes · {edgeCount} edges
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {presentTypes.map((t) => {
+                const c = TYPE_COLORS[t] ?? DEFAULT_COLOR;
+                return (
+                  <span
+                    key={t}
+                    className="text-[10px] px-1.5 py-0.5 rounded border"
+                    style={{ background: c.bg, color: c.fg, borderColor: c.border }}
+                  >
+                    {t}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        </Panel>
+      </ReactFlow>
+    </div>
+  );
+}
+
 export default function SopGraphCanvas({ jobId }: SopGraphCanvasProps) {
   const [data, setData] = useState<SopGraphResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,12 +278,7 @@ export default function SopGraphCanvas({ jobId }: SopGraphCanvasProps) {
   }
 
   if (!data || !laid) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Loading graph…
-      </div>
-    );
+    return <SopGraphCanvasLoading />;
   }
 
   if (data.nodes.length === 0) {
@@ -166,68 +294,15 @@ export default function SopGraphCanvas({ jobId }: SopGraphCanvasProps) {
 
   return (
     <ReactFlowProvider>
-      <ReactFlow
+      <SopGraphFlow
         nodes={laid.rfNodes}
         edges={laid.rfEdges}
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        proOptions={{ hideAttribution: true }}
-        nodesDraggable
-        nodesConnectable={false}
-        elementsSelectable
-        minZoom={0.05}
-        maxZoom={2.5}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable nodeStrokeWidth={1} style={{ width: 180, height: 120 }} />
-
-        {/* Layout direction toggle */}
-        <Panel position="top-left">
-          <div className="flex gap-1 bg-background border border-border rounded-md p-1 shadow-sm">
-            <button
-              onClick={() => setDirection('TB')}
-              className={`text-xs px-2 py-1 rounded ${
-                direction === 'TB' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Top-Down
-            </button>
-            <button
-              onClick={() => setDirection('LR')}
-              className={`text-xs px-2 py-1 rounded ${
-                direction === 'LR' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              Left-Right
-            </button>
-          </div>
-        </Panel>
-
-        {/* Stats + legend */}
-        <Panel position="top-right">
-          <div className="bg-background border border-border rounded-md p-2 shadow-sm max-w-[260px]">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
-              {data.nodes.length} nodes · {data.edges.length} edges
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {presentTypes.map((t) => {
-                const c = TYPE_COLORS[t] ?? DEFAULT_COLOR;
-                return (
-                  <span
-                    key={t}
-                    className="text-[10px] px-1.5 py-0.5 rounded border"
-                    style={{ background: c.bg, color: c.fg, borderColor: c.border }}
-                  >
-                    {t}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </Panel>
-      </ReactFlow>
+        direction={direction}
+        setDirection={setDirection}
+        nodeCount={data.nodes.length}
+        edgeCount={data.edges.length}
+        presentTypes={presentTypes}
+      />
     </ReactFlowProvider>
   );
 }

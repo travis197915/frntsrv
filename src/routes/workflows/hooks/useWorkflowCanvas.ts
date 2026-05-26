@@ -273,16 +273,20 @@ export function useWorkflowCanvas(
         return;
       }
 
+      const edgeId = `edge_${Date.now()}_${++idCounter}`;
       setEdges((eds) =>
         addEdge(
           {
             ...params,
+            id: edgeId,
             type: edgeTypeRef.current,
             markerEnd: { type: MarkerType.ArrowClosed, color: edgeMarkerColor() },
           },
           eds,
         ),
       );
+      setSelectedEdgeId(edgeId);
+      setSelectedNodeId(null);
       setIsDirty(true);
     },
     [setEdges, getNodes],

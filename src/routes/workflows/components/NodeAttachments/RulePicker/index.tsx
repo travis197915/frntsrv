@@ -24,7 +24,25 @@ import ExclusionsTab from "./ExclusionsTab";
 import ToolsTab from "./ToolsTab";
 import FocusedRefPanel from "./FocusedRefPanel";
 import HtmlClickFullscreenModal from "../HtmlFullscreenPicker";
+import RulePickerLoading from "./loading";
 import type { SopGroup } from "@/interfaces/workflows";
+import { cn } from "@/utils/utils";
+
+function tabButtonClass(active: boolean) {
+  return cn(
+    "relative px-3.5 py-1.5 rounded-md inline-flex items-center gap-1.5 text-xs transition-all",
+    active
+      ? "bg-white text-foreground shadow-md ring-1 ring-black/5 z-10 dark:bg-zinc-600 dark:text-zinc-50 dark:ring-white/10"
+      : "text-muted-foreground hover:text-foreground",
+  );
+}
+
+function tabCountClass(active: boolean) {
+  return cn(
+    "text-[10px] font-medium tabular-nums",
+    active ? "text-muted-foreground" : "text-muted-foreground/70",
+  );
+}
 
 interface RulePickerProps {
   workflowId: string;
@@ -437,7 +455,7 @@ export default function RulePicker({
       onClick={onClose}
     >
       <div
-        className="bg-card rounded-lg shadow-xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden"
+        className="bg-card rounded-lg shadow-xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -455,37 +473,50 @@ export default function RulePicker({
 
         {/* Tabs + search */}
         <div className="px-4 py-2 border-b border-border flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5 text-xs">
+          <div
+            role="tablist"
+            aria-label="Attachment type"
+            className="inline-flex rounded-lg bg-muted p-1 gap-0.5 shrink-0 dark:bg-zinc-900/80"
+          >
             <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "rules"}
               onClick={() => setTab("rules")}
-              className={`px-3 py-1 rounded ${tab === "rules" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+              className={tabButtonClass(tab === "rules")}
             >
               SOP Rules{" "}
               {data && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className={tabCountClass(tab === "rules")}>
                   ({data.sop_rules.length})
                 </span>
               )}
             </button>
             <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "exclusions"}
               onClick={() => setTab("exclusions")}
-              className={`px-3 py-1 rounded inline-flex items-center gap-1 ${tab === "exclusions" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+              className={tabButtonClass(tab === "exclusions")}
             >
               <Ban className="h-3 w-3" />
               Exclusions{" "}
               {data?.exclusions && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className={tabCountClass(tab === "exclusions")}>
                   ({data.exclusions.length})
                 </span>
               )}
             </button>
             <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "tools"}
               onClick={() => setTab("tools")}
-              className={`px-3 py-1 rounded ${tab === "tools" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
+              className={tabButtonClass(tab === "tools")}
             >
               Tool Calls{" "}
               {data && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className={tabCountClass(tab === "tools")}>
                   ({data.tool_calls.length})
                 </span>
               )}
@@ -523,9 +554,7 @@ export default function RulePicker({
           {err && (
             <div className="p-4 text-sm text-destructive">Failed: {err}</div>
           )}
-          {!data && !err && (
-            <div className="p-4 text-sm text-muted-foreground">Loading…</div>
-          )}
+          {!data && !err && <RulePickerLoading />}
 
           {data && tab === "rules" && (
             <RulesTab

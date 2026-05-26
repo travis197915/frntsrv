@@ -198,7 +198,7 @@ export default function ConfigPanel({
   );
 
   return (
-    <aside className="w-[320px] shrink-0 flex flex-col border-l border-border bg-card overflow-hidden">
+    <aside className="w-full h-full flex flex-col border-l border-border bg-card overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">

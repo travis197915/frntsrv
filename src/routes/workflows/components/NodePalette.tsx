@@ -106,7 +106,7 @@ export default function NodePalette(_props: NodePaletteProps) {
   }, [categories, query]);
 
   return (
-    <aside className="w-[260px] shrink-0 flex flex-col border-r border-border bg-card overflow-hidden">
+    <aside className="w-full h-full flex flex-col border-r border-border bg-card overflow-hidden">
       <div className="px-4 py-3.5">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Shapes

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Loader2, ShieldCheck, GitBranch, Tag, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, ShieldCheck, GitBranch, Tag, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import { ingestApi, type SopSectionsResponse, type SopDecision, type SopRule } from '@/lib/api';
+import { SopSectionsPanelLoading } from './SopGraphLoading';
 
 interface SopSectionsPanelProps {
   jobId: string;
@@ -80,13 +81,13 @@ function CodeChip({ code, type }: { code: string; type?: string }) {
 function RuleRow({ r }: { r: SopRule }) {
   return (
     <tr className="border-t border-border align-top">
-      <td className="py-1.5 pr-2 text-[11px]">
+      <td className="py-1.5 px-2.5 text-[11px]">
         {r.condition ? <span>{r.condition}</span> : <span className="text-muted-foreground italic">—</span>}
       </td>
-      <td className="py-1.5 pr-2 text-[11px]">
+      <td className="py-1.5 px-2.5 text-[11px]">
         {r.action ? <span>{r.action}</span> : <span className="text-muted-foreground italic">—</span>}
       </td>
-      <td className="py-1.5 text-[10px]">
+      <td className="py-1.5 px-2.5 text-[10px]">
         {r.decision_type && (
           <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[r.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
             {r.decision_type}
@@ -107,19 +108,19 @@ function DecisionRow({ d }: { d: SopDecision }) {
   ];
   return (
     <tr className="border-t border-border align-top">
-      <td className="py-1.5 pr-2 text-[11px] w-[40%]">
+      <td className="py-1.5 px-2.5 text-[11px] w-[40%]">
         {d.condition_if || <span className="text-muted-foreground italic">—</span>}
         {d.condition_and && (
           <p className="text-[10px] text-muted-foreground mt-0.5">AND {d.condition_and}</p>
         )}
       </td>
-      <td className="py-1.5 pr-2 text-[11px]">
+      <td className="py-1.5 px-2.5 text-[11px]">
         {d.action_text || <span className="text-muted-foreground italic">—</span>}
         {d.action_summary && d.action_summary !== d.action_text && (
           <p className="text-[10px] text-muted-foreground mt-0.5 italic">{d.action_summary}</p>
         )}
       </td>
-      <td className="py-1.5 pr-2 text-[10px] whitespace-nowrap">
+      <td className="py-1.5 px-2.5 text-[10px] whitespace-nowrap">
         <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[d.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
           {d.decision_type}
         </span>
@@ -128,7 +129,7 @@ function DecisionRow({ d }: { d: SopDecision }) {
           <p className="text-[10px] text-muted-foreground mt-0.5">→ Step {d.goto_step}</p>
         )}
       </td>
-      <td className="py-1.5 text-[10px]">
+      <td className="py-1.5 px-2.5 text-[10px]">
         {codes.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {codes.map((x, i) => <CodeChip key={`${x.t}-${x.c}-${i}`} code={x.c} type={x.t} />)}
@@ -164,12 +165,7 @@ export default function SopSectionsPanel({ jobId }: SopSectionsPanelProps) {
   }
 
   if (!data) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-2">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Loading sections…
-      </div>
-    );
+    return <SopSectionsPanelLoading />;
   }
 
   return (

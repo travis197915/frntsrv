@@ -18,6 +18,9 @@ import {
   type WorkflowSop,
 } from '@/lib/workflowsApi';
 import SopGraphDialog from './SopGraphDialog';
+import { cn } from '@/utils/utils';
+
+type SopTab = 'queued' | 'completed' | 'failed';
 
 interface WorkflowContextPanelProps {
   workflowId: string;
@@ -48,6 +51,86 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function groupSopsByStatus(sops: WorkflowSop[]) {
+  const queued: WorkflowSop[] = [];
+  const completed: WorkflowSop[] = [];
+  const failed: WorkflowSop[] = [];
+
+  for (const sop of sops) {
+    if (sop.status === 'FAILED') {
+      failed.push(sop);
+    } else if (sop.status === 'COMPLETED' || sop.status === 'PARTIAL') {
+      completed.push(sop);
+    } else {
+      queued.push(sop);
+    }
+  }
+
+  return { queued, completed, failed };
+}
+
+const SOP_TABS: { key: SopTab; label: string }[] = [
+  { key: 'completed', label: 'Completed' },
+  { key: 'queued', label: 'Queued' },
+  { key: 'failed', label: 'Failed' },
+];
+
+function sopTabButtonClass(active: boolean) {
+  return cn(
+    'relative flex-1 px-2 py-1.5 rounded-md inline-flex items-center justify-center gap-1 text-[11px] transition-all min-w-0',
+    active
+      ? 'bg-white text-foreground shadow-md ring-1 ring-black/5 z-10 dark:bg-zinc-600 dark:text-zinc-50 dark:ring-white/10'
+      : 'text-muted-foreground hover:text-foreground',
+  );
+}
+
+function sopTabCountClass(active: boolean) {
+  return cn(
+    'text-[10px] tabular-nums',
+    active ? 'text-muted-foreground' : 'text-muted-foreground/70',
+  );
+}
+
+function SopListItem({
+  sop,
+  onOpenGraph,
+}: {
+  sop: WorkflowSop;
+  onOpenGraph: (sop: WorkflowSop) => void;
+}) {
+  const canOpenGraph = sop.status === 'COMPLETED' || sop.status === 'PARTIAL';
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => canOpenGraph && onOpenGraph(sop)}
+        disabled={!canOpenGraph}
+        className={`w-full text-left text-xs rounded-md border border-border bg-background p-2 transition-colors ${
+          canOpenGraph
+            ? 'hover:border-primary hover:bg-muted/50 cursor-pointer'
+            : 'opacity-80 cursor-not-allowed'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <span className="font-medium truncate flex items-center gap-1 min-w-0">
+            <span className="truncate">{shortenUrl(sop.seed_url)}</span>
+            {canOpenGraph && <Network className="h-3 w-3 shrink-0 opacity-60" />}
+          </span>
+          <StatusBadge status={sop.status} />
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1">
+          {canOpenGraph
+            ? 'Click to view knowledge graph'
+            : `${sop.docs_processed} doc${sop.docs_processed === 1 ? '' : 's'} parsed${
+                sop.docs_failed > 0 ? ` · ${sop.docs_failed} failed` : ''
+              }`}
+        </p>
+      </button>
+    </li>
+  );
+}
+
 export default function WorkflowContextPanel({
   workflowId,
   workflowName,
@@ -63,6 +146,9 @@ export default function WorkflowContextPanel({
     name: '', url: '', method: 'GET', auth_type: 'none', auth_token: '',
   });
   const [busy, setBusy] = useState(false);
+  const [sopTab, setSopTab] = useState<SopTab>('completed');
+  const groupedSops = groupSopsByStatus(sops);
+  const activeSops = groupedSops[sopTab];
 
   const hasPending = sops.some((s) => s.status === 'QUEUED' || s.status === 'RUNNING');
 
@@ -101,7 +187,7 @@ export default function WorkflowContextPanel({
   }, [newAgent, workflowId, onAttached]);
 
   return (
-    <aside className="w-[320px] shrink-0 border-l border-border bg-card overflow-y-auto">
+    <aside className="w-full h-full border-l border-border bg-card overflow-y-auto">
       <div className="p-4 border-b border-border">
         <h2 className="text-sm font-semibold">{workflowName || 'Workflow'}</h2>
         {workflowDescription && (
@@ -154,40 +240,45 @@ export default function WorkflowContextPanel({
         {sops.length === 0 ? (
           <p className="text-xs italic text-muted-foreground">No SOPs attached.</p>
         ) : (
-          <ul className="space-y-2">
-            {sops.map((sop) => {
-              const canOpenGraph = sop.status === 'COMPLETED' || sop.status === 'PARTIAL';
-              return (
-                <li key={sop.job_id}>
-                  <button
-                    type="button"
-                    onClick={() => canOpenGraph && setGraphSop(sop)}
-                    disabled={!canOpenGraph}
-                    className={`w-full text-left text-xs rounded-md border border-border bg-background p-2 transition-colors ${
-                      canOpenGraph
-                        ? 'hover:border-primary hover:bg-muted/50 cursor-pointer'
-                        : 'opacity-80 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium truncate flex items-center gap-1 min-w-0">
-                        <span className="truncate">{shortenUrl(sop.seed_url)}</span>
-                        {canOpenGraph && <Network className="h-3 w-3 shrink-0 opacity-60" />}
-                      </span>
-                      <StatusBadge status={sop.status} />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      {canOpenGraph
-                        ? 'Click to view knowledge graph'
-                        : `${sop.docs_processed} doc${sop.docs_processed === 1 ? '' : 's'} parsed${
-                            sop.docs_failed > 0 ? ` · ${sop.docs_failed} failed` : ''
-                          }`}
-                    </p>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <div
+              role="tablist"
+              aria-label="SOP status"
+              className="mb-3 flex rounded-lg bg-muted p-1 gap-0.5 dark:bg-zinc-900/80"
+            >
+              {SOP_TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={sopTab === key}
+                  onClick={() => setSopTab(key)}
+                  className={sopTabButtonClass(sopTab === key)}
+                >
+                  {label}{' '}
+                  <span className={sopTabCountClass(sopTab === key)}>
+                    ({groupedSops[key].length})
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {activeSops.length === 0 ? (
+              <p className="text-xs italic text-muted-foreground">
+                No {sopTab} SOPs.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {activeSops.map((sop) => (
+                  <SopListItem
+                    key={sop.job_id}
+                    sop={sop}
+                    onOpenGraph={setGraphSop}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 
