@@ -86,7 +86,7 @@ function ShapeIcon({ shapeType, fill, stroke }: { shapeType: ShapeType; fill: st
   }
 }
 
-function PaletteItem({ def }: { def: ShapeDefinition }) {
+function PaletteItem({ def, readOnly = false }: { def: ShapeDefinition; readOnly?: boolean }) {
   const style     = (def.default_style ?? {}) as Record<string, unknown>;
   const fill      = (style.fill   as string | undefined) ?? '#f1f5f9';
   const stroke    = (style.stroke as string | undefined) ?? '#94a3b8';
@@ -95,9 +95,13 @@ function PaletteItem({ def }: { def: ShapeDefinition }) {
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(e, def.slug)}
-      className="group flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-background p-3 transition-all duration-150 cursor-grab active:cursor-grabbing active:scale-95 hover:border-primary/40 hover:shadow-md hover:bg-accent/30"
+      draggable={!readOnly}
+      onDragStart={readOnly ? undefined : (e) => onDragStart(e, def.slug)}
+      className={`group flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-background p-3 transition-all duration-150 ${
+        readOnly
+          ? "opacity-80 cursor-default"
+          : "cursor-grab active:cursor-grabbing active:scale-95 hover:border-primary/40 hover:shadow-md hover:bg-accent/30"
+      }`}
       title={def.description || def.label}
     >
       <div className="flex h-10 items-center justify-center">
@@ -112,9 +116,10 @@ function PaletteItem({ def }: { def: ShapeDefinition }) {
 
 interface NodePaletteProps {
   hasWorkArea?: boolean;
+  readOnly?: boolean;
 }
 
-export default function NodePalette(_props: NodePaletteProps) {
+export default function NodePalette({ readOnly = false }: NodePaletteProps) {
   const { categories, loading, error } = useShapeCatalog();
   const [query, setQuery] = useState('');
   const [toolsOpen, setToolsOpen] = useState(true);
@@ -155,7 +160,9 @@ export default function NodePalette(_props: NodePaletteProps) {
     <aside className="w-full h-full flex flex-col border-r border-border bg-card overflow-hidden">
       <div className="px-4 pt-4 pb-3">
         <h2 className="text-sm font-semibold text-foreground">Components</h2>
-        <p className="text-[11px] text-muted-foreground mt-0.5">Drag and drop onto the canvas</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          {readOnly ? "Browse available components (view only)" : "Drag and drop onto the canvas"}
+        </p>
       </div>
 
       <div className="px-3 pb-3">
@@ -189,7 +196,7 @@ export default function NodePalette(_props: NodePaletteProps) {
               </p>
               <div className="grid grid-cols-2 gap-1.5">
                 {cat.shapes.map((def) => (
-                  <PaletteItem key={def.id} def={def} />
+                  <PaletteItem key={def.id} def={def} readOnly={readOnly} />
                 ))}
               </div>
             </section>

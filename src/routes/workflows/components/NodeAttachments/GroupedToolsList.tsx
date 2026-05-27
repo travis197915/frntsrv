@@ -6,7 +6,7 @@ import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 interface GroupedToolsListProps {
   tools: AttachedTool[];
   rules: AttachedSopRule[];
-  onRemove: (key: string) => void;
+  onRemove?: (key: string) => void;
 }
 
 export default function GroupedToolsList({
@@ -87,13 +87,15 @@ export default function GroupedToolsList({
                       {t.url || t.name}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(pickKey)}
-                    className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(pickKey)}
+                      className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </li>
               );
             })}

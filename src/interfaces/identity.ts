@@ -4,7 +4,7 @@ export interface CorebackendUser {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "MEMBER";
+  role: "ADMIN" | "AUDITOR";
   isActive: boolean;
   createdAt: string;
 }

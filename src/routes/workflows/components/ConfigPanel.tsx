@@ -20,16 +20,19 @@ interface ConfigPanelProps {
   onDelete: (nodeId: string) => void;
   onClose: () => void;
   workflowId?: string;
+  readOnly?: boolean;
 }
 
 function DynamicField({
   field,
   value,
   onChange,
+  readOnly = false,
 }: {
   field: ShapePropertyField;
   value: unknown;
   onChange: (next: unknown) => void;
+  readOnly?: boolean;
 }) {
   const id = `field-${field.name}`;
   return (
@@ -43,13 +46,15 @@ function DynamicField({
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           className="min-h-[80px] resize-none"
+          disabled={readOnly}
         />
       ) : field.type === "select" && field.options ? (
         <select
           id={id}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          disabled={readOnly}
+          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
         >
           <option value="">Select…</option>
           {field.options.map((opt) => (
@@ -66,6 +71,7 @@ function DynamicField({
           onChange={(e) =>
             onChange(e.target.value === "" ? undefined : Number(e.target.value))
           }
+          disabled={readOnly}
         />
       ) : field.type === "boolean" ? (
         <label className="flex items-center gap-2 text-sm">
@@ -74,6 +80,7 @@ function DynamicField({
             type="checkbox"
             checked={Boolean(value)}
             onChange={(e) => onChange(e.target.checked)}
+            disabled={readOnly}
             className="h-4 w-4 rounded border-input"
           />
           <span className="text-muted-foreground">{field.label}</span>
@@ -83,6 +90,7 @@ function DynamicField({
           id={id}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
+          disabled={readOnly}
         />
       )}
     </div>
@@ -93,10 +101,12 @@ function DynamicShapeInspector({
   node,
   def,
   onUpdate,
+  readOnly = false,
 }: {
   node: WorkflowNode;
   def: ShapeDefinition;
   onUpdate: (nodeId: string, updates: Partial<WorkflowNodeData>) => void;
+  readOnly?: boolean;
 }) {
   const data = node.data as WorkflowNodeData;
   const props =
@@ -124,6 +134,7 @@ function DynamicShapeInspector({
               key={field.name}
               field={field}
               value={data[topKey] as unknown}
+              readOnly={readOnly}
               onChange={(v) =>
                 onUpdate(node.id, { [topKey]: v } as Partial<WorkflowNodeData>)
               }
@@ -135,6 +146,7 @@ function DynamicShapeInspector({
             key={field.name}
             field={field}
             value={props[field.name]}
+            readOnly={readOnly}
             onChange={(v) => setProperty(field.name, v)}
           />
         );
@@ -160,6 +172,7 @@ export default function ConfigPanel({
   onDelete,
   onClose,
   workflowId,
+  readOnly = false,
 }: ConfigPanelProps) {
   const data = node.data as WorkflowNodeData;
   const catalog = useShapeCatalog();
@@ -211,7 +224,7 @@ export default function ConfigPanel({
             />
           )}
           <span className="text-sm font-medium text-foreground truncate">
-            Configure {cfg.label}
+            {readOnly ? "View" : "Configure"} {cfg.label}
           </span>
         </div>
         <button
@@ -226,7 +239,12 @@ export default function ConfigPanel({
       {/* Form */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         {isDynamicShape ? (
-          <DynamicShapeInspector node={node} def={def!} onUpdate={onUpdate} />
+          <DynamicShapeInspector
+            node={node}
+            def={def!}
+            onUpdate={onUpdate}
+            readOnly={readOnly}
+          />
         ) : isWorkArea ? (
           <>
             <div className="space-y-1.5">
@@ -237,6 +255,7 @@ export default function ConfigPanel({
                 value={data.label}
                 onChange={(e) => update("label", e.target.value)}
                 placeholder="e.g. Data Ingestion"
+                disabled={readOnly}
               />
             </div>
 
@@ -249,6 +268,7 @@ export default function ConfigPanel({
                 onChange={(e) => update("description", e.target.value)}
                 className="min-h-[80px] resize-none"
                 placeholder="What is the purpose of this phase?"
+                disabled={readOnly}
               />
             </div>
 
@@ -275,23 +295,26 @@ export default function ConfigPanel({
               rules={attachedRules}
               tools={attachedTools}
               onChange={setAttachments}
+              readOnly={readOnly}
             />
           </>
         )}
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border px-4 py-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDelete(node.id)}
-          className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-          {isWorkArea ? "Delete Work Area & Contents" : "Delete Node"}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="border-t border-border px-4 py-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDelete(node.id)}
+            className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+            {isWorkArea ? "Delete Work Area & Contents" : "Delete Node"}
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

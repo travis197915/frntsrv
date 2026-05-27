@@ -6,12 +6,14 @@ import Loader from "@/components/Loader";
 import { ErrorAlert } from "@/components/ErrorAlert";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import { usersClient } from "@/lib/clients";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
 
   const {
     isLoading: loading,
@@ -24,7 +26,7 @@ export default function UserDetailPage() {
         id: string;
         email: string;
         name: string;
-        role: "ADMIN" | "MEMBER";
+        role: "ADMIN" | "AUDITOR";
         isActive: boolean;
         createdAt: string;
         updatedAt: string;
@@ -33,7 +35,7 @@ export default function UserDetailPage() {
   });
 
   const { mutate: updateRole, isPending: roleLoading } = useMutation({
-    mutationFn: ({ uid, role }: { uid: string; role: "ADMIN" | "MEMBER" }) =>
+    mutationFn: ({ uid, role }: { uid: string; role: "ADMIN" | "AUDITOR" }) =>
       usersClient.patch(`/${uid}/role`, { role }),
     onSuccess: (_data, { uid }) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -77,7 +79,7 @@ export default function UserDetailPage() {
     );
   }
 
-  const roleOptions: Array<"ADMIN" | "MEMBER"> = ["ADMIN", "MEMBER"];
+  const roleOptions: Array<"ADMIN" | "AUDITOR"> = ["ADMIN", "AUDITOR"];
 
   return (
     <SidebarLayout
@@ -135,56 +137,60 @@ export default function UserDetailPage() {
           </dl>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">Update role</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
-              value={user.role}
-              disabled={roleLoading}
-              onChange={(e) =>
-                updateRole({
-                  uid: user.id,
-                  role: e.target.value as "ADMIN" | "MEMBER",
-                })
-              }
-            >
-              {roleOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-            {roleLoading && (
-              <span className="text-xs text-muted-foreground">Saving…</span>
-            )}
-          </div>
-        </div>
+        {isAdmin && (
+          <>
+            <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+              <h2 className="text-sm font-semibold text-foreground">Update role</h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
+                  value={user.role}
+                  disabled={roleLoading}
+                  onChange={(e) =>
+                    updateRole({
+                      uid: user.id,
+                      role: e.target.value as "ADMIN" | "AUDITOR",
+                    })
+                  }
+                >
+                  {roleOptions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+                {roleLoading && (
+                  <span className="text-xs text-muted-foreground">Saving…</span>
+                )}
+              </div>
+            </div>
 
-        <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            Update status
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
-              value={user.isActive ? "active" : "inactive"}
-              disabled={statusLoading}
-              onChange={(e) =>
-                updateStatus({
-                  uid: user.id,
-                  isActive: e.target.value === "active",
-                })
-              }
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            {statusLoading && (
-              <span className="text-xs text-muted-foreground">Saving…</span>
-            )}
-          </div>
-        </div>
+            <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Update status
+              </h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
+                  value={user.isActive ? "active" : "inactive"}
+                  disabled={statusLoading}
+                  onChange={(e) =>
+                    updateStatus({
+                      uid: user.id,
+                      isActive: e.target.value === "active",
+                    })
+                  }
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                {statusLoading && (
+                  <span className="text-xs text-muted-foreground">Saving…</span>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         <Link
           to="/users"

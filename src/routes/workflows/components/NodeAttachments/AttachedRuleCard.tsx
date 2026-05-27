@@ -5,7 +5,7 @@ import type { AttachedSopRule } from "@/interfaces/workflows";
 
 interface AttachedRuleCardProps {
   rule: AttachedSopRule;
-  onRemove: (key: string) => void;
+  onRemove?: (key: string) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
 }
@@ -93,13 +93,15 @@ export default function AttachedRuleCard({
             </>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => onRemove(rule.key)}
-          className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={() => onRemove(rule.key)}
+            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
     </li>
   );

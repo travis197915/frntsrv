@@ -54,7 +54,7 @@ export interface NavItem {
   icon: string;
   href: string;
   section: string;
-  min_role: "MEMBER" | "ADMIN";
+  min_role: "AUDITOR" | "ADMIN";
   order: number;
 }
 

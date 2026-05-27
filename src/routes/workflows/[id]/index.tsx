@@ -36,7 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/StatusBadge";
 import { workflowsApi, type WorkflowDetail } from "@/lib/workflowsApi";
-import { useWorkflowCanvas, type RFEdgeType } from "../hooks/useWorkflowCanvas";
+import { useWorkflowCanvas } from "../hooks/useWorkflowCanvas";
 import { useWorkflowUiColors } from "../hooks/useWorkflowUiColors";
 import { nodeTypes } from "../components/nodes/nodeTypes";
 import NodePalette from "../components/NodePalette";
@@ -56,75 +56,7 @@ import ExecutionOverlay from "../execution/ExecutionOverlay";
 import ExecutionPanel from "../execution/ExecutionPanel";
 import ExecutionToolbar from "../execution/ExecutionToolbar";
 import WorkflowBuilderLoading from "./loading";
-
-// ── Edge type picker ──────────────────────────────────────────────────────────
-const EDGE_TYPES: { id: RFEdgeType; label: string; title: string }[] = [
-  { id: "default", label: "Bezier", title: "Bezier curve (default)" },
-  { id: "straight", label: "Straight", title: "Straight line" },
-  { id: "step", label: "Step", title: "Right-angle step" },
-  { id: "smoothstep", label: "Smooth", title: "Rounded step (smoothstep)" },
-];
-
-function EdgeTypePicker({
-  active,
-  onChange,
-}: {
-  active: RFEdgeType;
-  onChange: (t: RFEdgeType) => void;
-}) {
-  return (
-    <Panel position="top-center">
-      <div
-        style={{
-          display: "flex",
-          gap: 2,
-          background: "var(--card, #fff)",
-          border: "1px solid var(--border, #e2e8f0)",
-          borderRadius: 8,
-          padding: "3px 4px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            color: "var(--muted-foreground, #71717a)",
-            alignSelf: "center",
-            paddingRight: 6,
-            paddingLeft: 2,
-          }}
-        >
-          Edge
-        </span>
-        {EDGE_TYPES.map((et) => (
-          <button
-            key={et.id}
-            type="button"
-            title={et.title}
-            onClick={() => onChange(et.id)}
-            style={{
-              fontSize: 11,
-              fontWeight: active === et.id ? 600 : 400,
-              padding: "3px 10px",
-              borderRadius: 6,
-              border: "none",
-              cursor: "pointer",
-              background:
-                active === et.id ? "var(--primary, #3b82f6)" : "transparent",
-              color:
-                active === et.id
-                  ? "var(--primary-foreground, #fff)"
-                  : "var(--foreground, #0f172a)",
-              transition: "background 0.15s, color 0.15s",
-            }}
-          >
-            {et.label}
-          </button>
-        ))}
-      </div>
-    </Panel>
-  );
-}
+import { useAuth } from "@/contexts/AuthContext";
 
 // ── Edge inspector (label + quick Yes/No) ────────────────────────────────────
 function EdgeInspector({
@@ -261,6 +193,7 @@ function EdgeInspector({
 function WorkflowBuilderInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { canWrite } = useAuth();
   const ui = useWorkflowUiColors();
   const [isExecutionMode, setIsExecutionMode] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(null);
@@ -297,7 +230,6 @@ function WorkflowBuilderInner() {
     };
   }, [id, isNew]);
 
-  // ── Canvas hook ───────────────────────────────────────────────────────────
   const { bySlug: shapeCatalog } = useShapeCatalog();
   const {
     nodes,
@@ -319,8 +251,6 @@ function WorkflowBuilderInner() {
     saveWorkflow,
     loadFromJSON,
     setSelectedNodeId,
-    edgeType,
-    changeEdgeType,
     selectedEdge,
     onEdgeClick,
     labelEdge,
@@ -359,10 +289,6 @@ function WorkflowBuilderInner() {
     submitSopInput,
   } = useWorkflowExecution();
 
-  // ── Load from API ─────────────────────────────────────────────────────────
-  // Only initialise the canvas once per workflow id. Subsequent workflowData
-  // updates (e.g. refetchWorkflow after SOP attach) refresh metadata/sops but
-  // must not overwrite unsaved canvas changes the user has already made.
   useEffect(() => {
     const wf = (workflowData as any)?.workflow;
     if (!wf) return;
@@ -399,12 +325,12 @@ function WorkflowBuilderInner() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
-        if (isDirty && !isSaving && !isExecutionMode) saveWorkflow();
+        if (canWrite && isDirty && !isSaving && !isExecutionMode) saveWorkflow();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isDirty, isSaving, saveWorkflow, isExecutionMode]);
+  }, [canWrite, isDirty, isSaving, saveWorkflow, isExecutionMode]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -504,14 +430,14 @@ function WorkflowBuilderInner() {
 
   const defaultEdgeOptions = useMemo(
     () => ({
-      type: edgeType,
+      type: "smoothstep" as const,
       markerEnd: {
         type: "arrowclosed" as const,
         color: ui.mutedForeground || "#71717a",
       },
       style: { stroke: ui.mutedForeground || "#71717a", strokeWidth: 2 },
     }),
-    [edgeType, ui.mutedForeground],
+    [ui.mutedForeground],
   );
 
   const connectionLineStyle = useMemo(
@@ -529,7 +455,8 @@ function WorkflowBuilderInner() {
     return <WorkflowBuilderLoading />;
   }
 
-  const canExecute = !isNew;
+  const canExecute = !isNew && canWrite;
+  const isCanvasLocked = isExecutionMode || !canWrite;
 
   return (
     <div className="flex h-screen flex-col bg-background overflow-hidden text-foreground">
@@ -584,7 +511,7 @@ function WorkflowBuilderInner() {
                 >
                   {workflowMeta.name || "Untitled Workflow"}
                 </p>
-                {!isExecutionMode && (
+                {!isExecutionMode && canWrite && (
                   <button
                     type="button"
                     onClick={() => setIsEditingName(true)}
@@ -666,7 +593,7 @@ function WorkflowBuilderInner() {
               <Button
                 size="sm"
                 onClick={saveWorkflow}
-                disabled={!isDirty || isSaving || isNew}
+                disabled={!canWrite || !isDirty || isSaving || isNew}
               >
                 {isSaving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -700,7 +627,7 @@ function WorkflowBuilderInner() {
         direction="horizontal"
         className="flex-1 min-h-0 overflow-hidden"
       >
-        {/* NodePalette — left sidebar, hidden in execution mode */}
+        {/* NodePalette — left sidebar; visible in view mode for auditors */}
         {!isExecutionMode && (
           <>
             <ResizablePanel
@@ -709,7 +636,7 @@ function WorkflowBuilderInner() {
               maxSize={350}
               className="flex flex-col overflow-hidden"
             >
-              <NodePalette hasWorkArea={hasWorkArea} />
+              <NodePalette hasWorkArea={hasWorkArea} readOnly={!canWrite} />
             </ResizablePanel>
             <ResizableHandle withHandle />
           </>
@@ -721,17 +648,17 @@ function WorkflowBuilderInner() {
             <ReactFlow
               nodes={displayNodes}
               edges={displayEdges}
-              onNodesChange={isExecutionMode ? undefined : onNodesChange}
-              onEdgesChange={isExecutionMode ? undefined : onEdgesChange}
-              onConnect={isExecutionMode ? undefined : onConnect}
-              onDrop={isExecutionMode ? undefined : onDrop}
-              onDragOver={isExecutionMode ? undefined : onDragOver}
+              onNodesChange={isCanvasLocked ? undefined : onNodesChange}
+              onEdgesChange={isCanvasLocked ? undefined : onEdgesChange}
+              onConnect={isCanvasLocked ? undefined : onConnect}
+              onDrop={isCanvasLocked ? undefined : onDrop}
+              onDragOver={isCanvasLocked ? undefined : onDragOver}
               onNodeClick={isExecutionMode ? undefined : onNodeClick}
               onEdgeClick={isExecutionMode ? undefined : onEdgeClick}
               onPaneClick={isExecutionMode ? undefined : onPaneClick}
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
-              snapToGrid={!isExecutionMode}
+              snapToGrid={!isCanvasLocked}
               snapGrid={[20, 20]}
               fitView
               fitViewOptions={{ padding: 0.3 }}
@@ -742,8 +669,8 @@ function WorkflowBuilderInner() {
               connectionLineStyle={connectionLineStyle}
               proOptions={{ hideAttribution: true }}
               className="workflow-canvas"
-              nodesDraggable={!isExecutionMode}
-              nodesConnectable={!isExecutionMode}
+              nodesDraggable={!isCanvasLocked}
+              nodesConnectable={!isCanvasLocked}
               elementsSelectable={!isExecutionMode}
             >
               <Background
@@ -769,11 +696,7 @@ function WorkflowBuilderInner() {
                 className="bg-card! border-border! border shadow-sm! [&>button]:bg-background! [&>button]:border-border! [&>button]:text-muted-foreground! [&>button:hover]:bg-muted! [&>button]:fill-muted-foreground!"
               />
 
-              {!isExecutionMode && (
-                <EdgeTypePicker active={edgeType} onChange={changeEdgeType} />
-              )}
-
-              {!isExecutionMode && selectedEdge && (
+              {!isCanvasLocked && selectedEdge && (
                 <EdgeInspector
                   edgeId={selectedEdge.id}
                   currentLabel={
@@ -822,6 +745,7 @@ function WorkflowBuilderInner() {
                   onDelete={deleteNode}
                   onClose={() => setSelectedNodeId(null)}
                   workflowId={isNew ? undefined : id}
+                  readOnly={!canWrite}
                 />
               ) : !isNew && id ? (
                 <WorkflowContextPanel

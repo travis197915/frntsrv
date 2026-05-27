@@ -134,7 +134,7 @@ export default function UsersListPage() {
                 type="password"
                 validators={{ required: true }}
               />
-              <FormInput fieldName="role" label="Role (USER or ADMIN)" />
+              <FormInput fieldName="role" label="Role (AUDITOR or ADMIN)" />
             </FormPanel>
           </DialogContent>
         </Dialog>

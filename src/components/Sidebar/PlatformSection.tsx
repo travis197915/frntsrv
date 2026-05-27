@@ -31,27 +31,36 @@ export function PlatformSection({ onNavClick }: PlatformSectionProps) {
 
   /**
    * Items with no `section` stay at the top (the "Dashboard" row).
-   * Everything else lumps into a section, preserving insertion order so
-   * the backend `order` field controls the display order end-to-end.
+   * Sections follow the backend `order` field (first item in a section
+   * sets its position), not alphabetical section names.
    */
   const { topLevel, sections } = useMemo(() => {
+    const sorted = [...(items ?? [])].sort(
+      (a, b) => a.order - b.order || a.label.localeCompare(b.label),
+    );
+
     const top: NavItem[] = [];
     const buckets = new Map<string, NavItem[]>();
-    const order: string[] = [];
-    for (const item of items ?? []) {
+    const sectionOrder: string[] = [];
+
+    for (const item of sorted) {
       if (!item.section) {
         top.push(item);
         continue;
       }
       if (!buckets.has(item.section)) {
         buckets.set(item.section, []);
-        order.push(item.section);
+        sectionOrder.push(item.section);
       }
       buckets.get(item.section)!.push(item);
     }
+
     return {
       topLevel: top,
-      sections: order.map<Section>((label) => ({ label, items: buckets.get(label) ?? [] })),
+      sections: sectionOrder.map<Section>((label) => ({
+        label,
+        items: buckets.get(label) ?? [],
+      })),
     };
   }, [items]);
 

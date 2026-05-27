@@ -8,6 +8,7 @@ interface PickerSidebarProps {
   dataAvailable: boolean | undefined;
   onToggle: (bid: string) => void;
   onScrollTo: (bid: string) => void;
+  readOnly?: boolean;
 }
 
 export default function PickerSidebar({
@@ -17,13 +18,20 @@ export default function PickerSidebar({
   dataAvailable,
   onToggle,
   onScrollTo,
+  readOnly = false,
 }: PickerSidebarProps) {
   return (
     <aside className="w-[440px] shrink-0 overflow-hidden flex flex-col border-r border-border bg-background">
       <div className="px-3 py-2 border-b border-border bg-emerald-50/60 text-[11px] text-emerald-900 flex items-center gap-2">
         <CheckSquare className="h-3.5 w-3.5 text-emerald-700" />
         <span className="flex-1">
-          <b>Tick the boxes</b> below to mark sections for exclusion.
+          {readOnly ? (
+            <b>View-only</b>
+          ) : (
+            <>
+              <b>Tick the boxes</b> below to mark sections for exclusion.
+            </>
+          )}
         </span>
         <span className="text-rose-700 font-semibold">{excludedKeys.size}</span>
         <span className="text-muted-foreground">/ {candidates.length}</span>
@@ -39,23 +47,28 @@ export default function PickerSidebar({
             return (
               <div
                 key={c.bid}
-                role="button"
-                tabIndex={0}
-                onClick={() => onToggle(c.bid)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onToggle(c.bid);
-                  }
-                }}
-                className={`group flex items-start gap-3 px-3 py-2 border-b border-border cursor-pointer hover:bg-indigo-50/60 transition-colors ${
-                  isExcluded ? "bg-rose-50/70" : ""
-                }`}
+                role={readOnly ? undefined : "button"}
+                tabIndex={readOnly ? undefined : 0}
+                onClick={readOnly ? undefined : () => onToggle(c.bid)}
+                onKeyDown={
+                  readOnly
+                    ? undefined
+                    : (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onToggle(c.bid);
+                        }
+                      }
+                }
+                className={`group flex items-start gap-3 px-3 py-2 border-b border-border transition-colors ${
+                  readOnly ? "" : "cursor-pointer hover:bg-indigo-50/60"
+                } ${isExcluded ? "bg-rose-50/70" : ""}`}
               >
                 <input
                   type="checkbox"
                   checked={isExcluded}
                   readOnly
+                  disabled={readOnly}
                   tabIndex={-1}
                   aria-label={`Exclude ${c.label}`}
                   className="mt-0.5 h-5 w-5 shrink-0 pointer-events-none"

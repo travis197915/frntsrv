@@ -24,6 +24,7 @@ interface RulesTabProps {
   exclusionByKey: Map<string, AttachableExclusion>;
   focusedRefKey: string | null;
   busyRuleKey: string | null;
+  readOnly?: boolean;
   onToggleRule: (key: string) => void;
   onToggleExclusion: (
     sopId: number,
@@ -43,6 +44,7 @@ export default function RulesTab({
   exclusionByKey,
   focusedRefKey,
   busyRuleKey,
+  readOnly = false,
   onToggleRule,
   onToggleExclusion,
   onFocusRef,
@@ -146,15 +148,18 @@ export default function RulesTab({
                       <button
                         type="button"
                         onClick={() => onToggleRule(r.key)}
+                        disabled={readOnly}
                         aria-label={
                           isSelected ? "Deselect rule" : "Select rule"
                         }
+                        className={readOnly ? "opacity-60 cursor-not-allowed" : ""}
                       >
                         <input
                           type="checkbox"
                           checked={isSelected}
                           readOnly
-                          className="h-3.5 w-3.5 rounded border-input"
+                          disabled={readOnly}
+                          className="h-3.5 w-3.5 rounded border-input pointer-events-none"
                         />
                       </button>
                       {isSelected && pickedSequences.has(r.key) && (
@@ -164,8 +169,8 @@ export default function RulesTab({
                       )}
                     </div>
                     <div
-                      className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => onToggleRule(r.key)}
+                      className={`flex-1 min-w-0 ${readOnly ? "" : "cursor-pointer"}`}
+                      onClick={readOnly ? undefined : () => onToggleRule(r.key)}
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
@@ -257,7 +262,7 @@ export default function RulesTab({
                       )}
                       <button
                         type="button"
-                        disabled={isBusy}
+                        disabled={readOnly || isBusy}
                         onClick={(e) => {
                           e.stopPropagation();
                           const t = ruleKeyToExclusionTarget(r);
@@ -270,15 +275,17 @@ export default function RulesTab({
                           );
                         }}
                         title={
-                          isUserExcluded
-                            ? "Remove this exclusion"
-                            : "Mark this rule as excluded for the SOP"
+                          readOnly
+                            ? "View only"
+                            : isUserExcluded
+                              ? "Remove this exclusion"
+                              : "Mark this rule as excluded for the SOP"
                         }
                         className={`h-6 px-2 inline-flex items-center gap-1 rounded text-[10px] border ${
                           isUserExcluded
                             ? "bg-rose-600 text-white border-rose-600 hover:bg-rose-700"
                             : "bg-background border-border text-muted-foreground hover:text-rose-700 hover:border-rose-300"
-                        } ${isBusy ? "opacity-50" : ""}`}
+                        } ${isBusy || readOnly ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <Ban className="h-3 w-3" />
                         {isUserExcluded ? "Excluded" : "Exclude"}

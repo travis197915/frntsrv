@@ -33,6 +33,7 @@ interface ExclusionsTabProps {
   ) => Promise<void>;
   onFocusRef: (key: string | null) => void;
   onOpenFullscreen: (sopId: number) => void;
+  readOnly?: boolean;
 }
 
 export default function ExclusionsTab({
@@ -48,6 +49,7 @@ export default function ExclusionsTab({
   onToggleExclusion,
   onFocusRef,
   onOpenFullscreen,
+  readOnly = false,
 }: ExclusionsTabProps) {
   const [htmlPickMode, setHtmlPickMode] = useState<"list" | "click">("click");
   const [htmlBlockQuery, setHtmlBlockQuery] = useState("");
@@ -147,10 +149,15 @@ export default function ExclusionsTab({
                       <Button
                         size="default"
                         onClick={() => onOpenFullscreen(sopFilter)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        variant={readOnly ? "outline" : "default"}
+                        className={
+                          readOnly
+                            ? ""
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        }
                       >
                         <Maximize2 className="mr-1.5 h-4 w-4" />
-                        Open fullscreen picker
+                        {readOnly ? "View fullscreen picker" : "Open fullscreen picker"}
                       </Button>
                       {htmlExclCount > 0 && (
                         <p className="text-[11px] text-rose-700">
@@ -220,12 +227,12 @@ export default function ExclusionsTab({
                     return (
                       <label
                         key={b.block_id}
-                        className={`px-4 py-1.5 flex items-start gap-3 hover:bg-emerald-50 cursor-pointer ${b.is_excluded ? "bg-rose-50/30" : ""}`}
+                        className={`px-4 py-1.5 flex items-start gap-3 ${readOnly ? "" : "hover:bg-emerald-50 cursor-pointer"} ${b.is_excluded ? "bg-rose-50/30" : ""}`}
                       >
                         <input
                           type="checkbox"
                           checked={b.is_excluded}
-                          disabled={isBusy}
+                          disabled={readOnly || isBusy}
                           onChange={(e) =>
                             void onToggleExclusion(
                               sopFilter,
@@ -376,7 +383,7 @@ export default function ExclusionsTab({
               {isUser && e.target_kind && e.target_key && (
                 <button
                   type="button"
-                  disabled={isBusy}
+                  disabled={readOnly || isBusy}
                   onClick={() =>
                     void onToggleExclusion(
                       e.sop_id,
@@ -386,8 +393,8 @@ export default function ExclusionsTab({
                       e.key,
                     )
                   }
-                  title="Remove this exclusion"
-                  className={`h-6 px-2 inline-flex items-center gap-1 rounded text-[10px] border bg-background border-border text-muted-foreground hover:text-rose-700 hover:border-rose-300 ${isBusy ? "opacity-50" : ""}`}
+                  title={readOnly ? "View only" : "Remove this exclusion"}
+                  className={`h-6 px-2 inline-flex items-center gap-1 rounded text-[10px] border bg-background border-border text-muted-foreground hover:text-rose-700 hover:border-rose-300 ${isBusy || readOnly ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <Ban className="h-3 w-3" />
                   Remove

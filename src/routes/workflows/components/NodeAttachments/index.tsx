@@ -12,6 +12,7 @@ interface NodeAttachmentsProps {
   rules: AttachedSopRule[];
   tools: AttachedTool[];
   onChange: (rules: AttachedSopRule[], tools: AttachedTool[]) => void;
+  readOnly?: boolean;
 }
 
 export default function NodeAttachments({
@@ -19,21 +20,27 @@ export default function NodeAttachments({
   rules,
   tools,
   onChange,
+  readOnly = false,
 }: NodeAttachmentsProps) {
   const [open, setOpen] = useState(false);
 
-  const removeRule = (key: string) =>
+  const removeRule = (key: string) => {
+    if (readOnly) return;
     onChange(
       rules.filter((r) => r.key !== key),
       tools,
     );
-  const removeTool = (key: string) =>
+  };
+  const removeTool = (key: string) => {
+    if (readOnly) return;
     onChange(
       rules,
       tools.filter((t) => toolPickKey(t) !== key),
     );
+  };
 
   const moveRule = (key: string, dir: "up" | "down") => {
+    if (readOnly) return;
     const idx = rules.findIndex((r) => r.key === key);
     if (idx === -1) return;
     const swap = dir === "up" ? idx - 1 : idx + 1;
@@ -70,14 +77,16 @@ export default function NodeAttachments({
             onClick={() => setOpen(true)}
           >
             <Plus className="h-3 w-3 mr-1" />
-            Pick rules &amp; tools
+            {readOnly ? "View rules & tools" : "Pick rules & tools"}
           </Button>
         </div>
 
         {rules.length === 0 ? (
           <p className="text-[11px] text-muted-foreground italic">
-            No rules attached. Click "Pick" to select lines from any SOP linked
-            to this workflow.
+            No rules attached.
+            {readOnly
+              ? " Open the viewer to browse available SOP rules."
+              : ' Click "Pick" to select lines from any SOP linked to this workflow.'}
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -85,12 +94,14 @@ export default function NodeAttachments({
               <AttachedRuleCard
                 key={r.key}
                 rule={r}
-                onRemove={removeRule}
-                onMoveUp={i > 0 ? () => moveRule(r.key, "up") : undefined}
+                onRemove={readOnly ? undefined : removeRule}
+                onMoveUp={
+                  readOnly || i === 0 ? undefined : () => moveRule(r.key, "up")
+                }
                 onMoveDown={
-                  i < rules.length - 1
-                    ? () => moveRule(r.key, "down")
-                    : undefined
+                  readOnly || i >= rules.length - 1
+                    ? undefined
+                    : () => moveRule(r.key, "down")
                 }
               />
             ))}
@@ -108,7 +119,11 @@ export default function NodeAttachments({
             No tools attached.
           </p>
         ) : (
-          <GroupedToolsList tools={tools} rules={rules} onRemove={removeTool} />
+          <GroupedToolsList
+            tools={tools}
+            rules={rules}
+            onRemove={readOnly ? undefined : removeTool}
+          />
         )}
       </div>
 
@@ -117,6 +132,7 @@ export default function NodeAttachments({
           workflowId={workflowId}
           selectedKeys={selectedKeys}
           existingRules={rules}
+          readOnly={readOnly}
           onClose={() => setOpen(false)}
           onSave={(r, t) => onChange(r, t)}
         />

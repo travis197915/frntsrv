@@ -8,6 +8,7 @@ interface ReviewPanelProps {
   onSetReviewTab: (tab: "excluded" | "kept") => void;
   onScrollTo: (bid: string) => void;
   onToggleBid: (bid: string) => void;
+  readOnly?: boolean;
 }
 
 export default function ReviewPanel({
@@ -17,6 +18,7 @@ export default function ReviewPanel({
   onSetReviewTab,
   onScrollTo,
   onToggleBid,
+  readOnly = false,
 }: ReviewPanelProps) {
   return (
     <aside className="w-[440px] shrink-0 overflow-hidden flex flex-col bg-rose-50/20">
@@ -79,9 +81,10 @@ export default function ReviewPanel({
                     </button>
                     <button
                       type="button"
+                      disabled={readOnly}
                       onClick={() => onToggleBid(p.bid)}
-                      className="text-[10px] text-emerald-700 hover:underline"
-                      title="Remove from exclusions"
+                      className={`text-[10px] hover:underline ${readOnly ? "text-muted-foreground cursor-not-allowed opacity-50" : "text-emerald-700"}`}
+                      title={readOnly ? "View only" : "Remove from exclusions"}
                     >
                       Keep
                     </button>
@@ -123,9 +126,10 @@ export default function ReviewPanel({
                       </button>
                       <button
                         type="button"
+                        disabled={readOnly}
                         onClick={() => onToggleBid(p.bid)}
-                        className="text-[10px] text-rose-700 hover:underline"
-                        title="Exclude this element"
+                        className={`text-[10px] hover:underline ${readOnly ? "text-muted-foreground cursor-not-allowed opacity-50" : "text-rose-700"}`}
+                        title={readOnly ? "View only" : "Exclude this element"}
                       >
                         Exclude
                       </button>

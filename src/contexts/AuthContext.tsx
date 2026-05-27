@@ -8,25 +8,28 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { User, RoleRequirement } from '@/utils/user';
-import { isAdmin } from '@/utils/user';
+import type { User, RoleRequirement, UserRole } from '@/utils/user';
+import { canWrite, isAdmin } from '@/utils/user';
 import { AUTH_USER_KEY, clearToken, getToken, setToken } from '@/utils/auth';
 import { authApi, type AuthResponse, type CorebackendUser } from '@/lib/api';
 
 /**
  * Auth flows talk REST to the **Node** `claims-corebackend` (identity
- * service: `/auth/login`, `/auth/me`).  Builder data — workflows, catalog,
- * sidebar, dashboard — comes from the Django builder app, but uses the
- * **same** JWT since both services share `JWT_SECRET`.
+ * service: `/auth/login`, `/auth/register`, `/auth/me`).  Builder data —
+ * workflows, catalog, sidebar, dashboard — comes from the Django builder app,
+ * but uses the **same** JWT since both services share `JWT_SECRET`.
  */
+
+function toUserRole(role: CorebackendUser['role'] | 'MEMBER'): UserRole {
+  return role === 'ADMIN' ? 'ADMIN' : 'AUDITOR';
+}
 
 function adaptUser(u: CorebackendUser): User {
   return {
     id:        u.id,
     email:     u.email,
     name:      u.name || u.email,
-    // Corebackend roles are ADMIN / MEMBER; the existing UI knows ADMIN / USER.
-    role:      u.role === 'ADMIN' ? 'ADMIN' : 'USER',
+    role:      toUserRole(u.role),
     status:    u.isActive ? 'ACTIVE' : 'INACTIVE',
     createdAt: u.createdAt,
   };
@@ -58,9 +61,11 @@ export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
   hasPermission: (roleRequired: RoleRequirement) => boolean;
   isAdmin: boolean;
+  canWrite: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -78,22 +83,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(() => loadUserFromStorage());
   const [isLoading, setIsLoading] = useState(false);
 
+  const persistSession = useCallback((payload: AuthResponse) => {
+    if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
+    const u = adaptUser(payload.user);
+    setToken(payload.token);
+    setUser(u);
+    saveUserToStorage(u);
+    return u;
+  }, []);
+
   const login = useCallback(
     async (email: string, password: string) => {
       setIsLoading(true);
       try {
         const payload = await authApi.post<AuthResponse>('/auth/login', { email, password });
-        if (!payload?.token || !payload.user) throw new Error('Invalid login response');
-        const u = adaptUser(payload.user);
-        setToken(payload.token);
-        setUser(u);
-        saveUserToStorage(u);
+        persistSession(payload);
         navigate('/dashboard', { replace: true });
       } finally {
         setIsLoading(false);
       }
     },
-    [navigate],
+    [navigate, persistSession],
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, name?: string) => {
+      setIsLoading(true);
+      try {
+        const payload = await authApi.post<AuthResponse>('/auth/register', {
+          email,
+          password,
+          name,
+        });
+        persistSession(payload);
+        navigate('/dashboard', { replace: true });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [navigate, persistSession],
   );
 
   const logout = useCallback(() => {
@@ -142,11 +170,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       isLoading,
       login,
+      register,
       logout,
       hasPermission,
       isAdmin: user ? isAdmin(user.role) : false,
+      canWrite: user ? canWrite(user.role) : false,
     }),
-    [user, isLoading, login, logout, hasPermission],
+    [user, isLoading, login, register, logout, hasPermission],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -129,7 +129,7 @@ export default function SettingsPage() {
   });
 
   const { mutate: updateUserRole } = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: "ADMIN" | "MEMBER" }) =>
+    mutationFn: ({ id, role }: { id: string; role: "ADMIN" | "AUDITOR" }) =>
       usersClient.patch(`/${id}/role`, { role }),
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -408,7 +408,7 @@ export default function SettingsPage() {
                     label="Password"
                     validators={{ required: true }}
                   />
-                  <FormInput fieldName="role" label="Role (USER or ADMIN)" />
+                  <FormInput fieldName="role" label="Role (AUDITOR or ADMIN)" />
                 </FormPanel>
               </div>
             )}
@@ -480,7 +480,7 @@ export default function SettingsPage() {
                                     updateUserRole({
                                       id: u.id,
                                       role:
-                                        u.role === "ADMIN" ? "MEMBER" : "ADMIN",
+                                        u.role === "ADMIN" ? "AUDITOR" : "ADMIN",
                                     })
                                   }
                                   className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"

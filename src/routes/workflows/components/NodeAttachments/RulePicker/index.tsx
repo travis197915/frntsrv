@@ -50,6 +50,7 @@ interface RulePickerProps {
   existingRules: AttachedSopRule[];
   onClose: () => void;
   onSave: (rules: AttachedSopRule[], tools: AttachedTool[]) => void;
+  readOnly?: boolean;
 }
 
 export default function RulePicker({
@@ -58,6 +59,7 @@ export default function RulePicker({
   existingRules,
   onClose,
   onSave,
+  readOnly = false,
 }: RulePickerProps) {
   const [data, setData] = useState<WorkflowAttachable | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -126,6 +128,7 @@ export default function RulePicker({
       section_label?: string;
     },
   ) => {
+    if (readOnly) return;
     if (busyRowKey) setBusyRuleKey(busyRowKey);
     try {
       await sopExclusionsApi.toggle(sopId, {
@@ -357,6 +360,7 @@ export default function RulePicker({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const toggle = (key: string) => {
+    if (readOnly) return;
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
@@ -377,6 +381,7 @@ export default function RulePicker({
   };
 
   const toggleToolForRule = (toolKey: string, ruleKey: string | null) => {
+    if (readOnly) return;
     setPicked((prev) => {
       const next = new Set(prev);
       if (next.has(toolKey)) next.delete(toolKey);
@@ -460,9 +465,16 @@ export default function RulePicker({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold">
-            Attach rules &amp; tools to this node
-          </h2>
+          <div>
+            <h2 className="text-sm font-semibold">
+              {readOnly ? "View rules & tools" : "Attach rules & tools to this node"}
+            </h2>
+            {readOnly && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Read-only — browsing available attachments without saving changes.
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground"
@@ -565,6 +577,7 @@ export default function RulePicker({
               exclusionByKey={exclusionByKey}
               focusedRefKey={focusedRefKey}
               busyRuleKey={busyRuleKey}
+              readOnly={readOnly}
               onToggleRule={toggle}
               onToggleExclusion={toggleExclusion}
               onFocusRef={setFocusedRefKey}
@@ -581,6 +594,7 @@ export default function RulePicker({
               htmlBlocksBySop={htmlBlocksBySop}
               htmlBlocksLoading={htmlBlocksLoading}
               htmlBlocksError={htmlBlocksError}
+              readOnly={readOnly}
               onLoadHtmlBlocks={loadHtmlBlocks}
               onToggleExclusion={toggleExclusion}
               onFocusRef={setFocusedRefKey}
@@ -595,6 +609,7 @@ export default function RulePicker({
               pickedToolToRule={pickedToolToRule}
               focusedRefKey={focusedRefKey}
               ruleByKey={ruleByKey}
+              readOnly={readOnly}
               onToggleTool={toggleToolForRule}
             />
           )}
@@ -620,11 +635,13 @@ export default function RulePicker({
           </p>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>
-              Cancel
+              {readOnly ? "Close" : "Cancel"}
             </Button>
-            <Button size="sm" onClick={handleSave}>
-              Save attachments
-            </Button>
+            {!readOnly && (
+              <Button size="sm" onClick={handleSave}>
+                Save attachments
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -641,6 +658,7 @@ export default function RulePicker({
               availableSops.find((s) => s.sop_id === fullscreenSopId)?.title ??
               `SOP #${fullscreenSopId}`
             }
+            readOnly={readOnly}
             onClose={() => {
               setFullscreenSopId(null);
               void refetch();

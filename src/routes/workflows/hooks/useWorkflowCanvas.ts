@@ -100,8 +100,7 @@ export function useWorkflowCanvas(
   const [workflowMeta, setWorkflowMeta] = useState<WorkflowMeta>({ ...DEFAULT_META, id: workflowId ?? '' });
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [edgeType, setEdgeType] = useState<RFEdgeType>('smoothstep');
-  const edgeTypeRef = useRef<RFEdgeType>('smoothstep');
+  const defaultEdgeType: RFEdgeType = 'smoothstep';
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const rfInstance = useRef<ReactFlowInstance | null>(null);
   const { getNodes } = useReactFlow();
@@ -279,7 +278,7 @@ export function useWorkflowCanvas(
           {
             ...params,
             id: edgeId,
-            type: edgeTypeRef.current,
+            type: defaultEdgeType,
             markerEnd: { type: MarkerType.ArrowClosed, color: edgeMarkerColor() },
           },
           eds,
@@ -290,18 +289,6 @@ export function useWorkflowCanvas(
       setIsDirty(true);
     },
     [setEdges, getNodes],
-  );
-
-  // Change the active edge type; also update any selected edges on the canvas.
-  const changeEdgeType = useCallback(
-    (type: RFEdgeType) => {
-      edgeTypeRef.current = type;
-      setEdgeType(type);
-      setEdges((eds) =>
-        eds.map((e) => (e.selected ? { ...e, type } : e)),
-      );
-    },
-    [setEdges],
   );
 
   const onEdgeClick = useCallback(
@@ -532,8 +519,6 @@ export function useWorkflowCanvas(
     loadFromJSON,
     serializeCanvas,
     rfInstance,
-    edgeType,
-    changeEdgeType,
     selectedEdgeId,
     selectedEdge,
     onEdgeClick,

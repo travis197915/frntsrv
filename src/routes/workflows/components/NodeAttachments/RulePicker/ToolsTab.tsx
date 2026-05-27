@@ -8,6 +8,7 @@ interface ToolsTabProps {
   pickedToolToRule: Map<string, string>;
   focusedRefKey: string | null;
   ruleByKey: Map<string, AttachableSopRule>;
+  readOnly?: boolean;
   onToggleTool: (toolKey: string, ruleKey: string | null) => void;
 }
 
@@ -17,6 +18,7 @@ export default function ToolsTab({
   pickedToolToRule,
   focusedRefKey,
   ruleByKey,
+  readOnly = false,
   onToggleTool,
 }: ToolsTabProps) {
   return (
@@ -47,6 +49,7 @@ export default function ToolsTab({
             <button
               key={pickKey}
               type="button"
+              disabled={readOnly}
               onClick={() =>
                 onToggleTool(
                   pickKey,
@@ -55,7 +58,7 @@ export default function ToolsTab({
                     : null,
                 )
               }
-              className={`w-full text-left px-4 py-2 hover:bg-muted/40 transition-colors flex items-start gap-3 ${isSelected ? "bg-blue-50/40" : ""}`}
+              className={`w-full text-left px-4 py-2 transition-colors flex items-start gap-3 ${isSelected ? "bg-blue-50/40" : ""} ${readOnly ? "opacity-80 cursor-default" : "hover:bg-muted/40"}`}
             >
               <input
                 type="checkbox"

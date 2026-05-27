@@ -1,6 +1,6 @@
-export type UserRole = "ADMIN" | "USER";
+export type UserRole = "ADMIN" | "AUDITOR";
 export type UserStatus = "ACTIVE" | "INACTIVE";
-export type RoleRequirement = "ADMIN" | "USER";
+export type RoleRequirement = "ADMIN" | "AUDITOR";
 
 export interface User {
   id: string;
@@ -16,12 +16,21 @@ export function isAdmin(role: UserRole | string): boolean {
   return role === "ADMIN";
 }
 
+export function isAuditor(role: UserRole | string): boolean {
+  return role === "AUDITOR";
+}
+
+/** Only admins may perform write / mutate operations. */
+export function canWrite(role: UserRole | string): boolean {
+  return isAdmin(role);
+}
+
 export function getRoleLabel(role: UserRole | string): string {
   switch (role) {
     case "ADMIN":
       return "Administrator";
-    case "USER":
-      return "Member";
+    case "AUDITOR":
+      return "Auditor";
     default:
       return role;
   }

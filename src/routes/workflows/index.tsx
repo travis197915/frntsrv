@@ -18,7 +18,7 @@ import CreateWorkflowDialog from './components/CreateWorkflowDialog';
 
 export default function WorkflowsPage() {
   const navigate = useNavigate();
-  useAuth();
+  const { canWrite } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -146,7 +146,7 @@ export default function WorkflowsPage() {
           className="h-8 text-sm"
         />
 
-        <Button size="sm" onClick={handleCreateNew} className="shrink-0">
+        <Button size="sm" onClick={handleCreateNew} className="shrink-0" disabled={!canWrite}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           New Workflow
         </Button>
@@ -198,7 +198,7 @@ export default function WorkflowsPage() {
               : 'Create your first workflow to start building automation pipelines.'
           }
           action={
-            !searchQuery && !statusFilter ? (
+            !searchQuery && !statusFilter && canWrite ? (
               <Button size="sm" onClick={handleCreateNew}>
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
                 New Workflow
@@ -218,8 +218,9 @@ export default function WorkflowsPage() {
               config={wf.config}
               updatedAt={wf.updatedAt}
               onRun={() => {}}
-              onDuplicate={() => void handleDuplicateWorkflow(wf.id)}
-              onDelete={() => void handleDeleteWorkflow(wf.id)}
+              onDuplicate={canWrite ? () => void handleDuplicateWorkflow(wf.id) : undefined}
+              onDelete={canWrite ? () => void handleDeleteWorkflow(wf.id) : undefined}
+              disableActions={!canWrite}
             />
           ))}
         </div>

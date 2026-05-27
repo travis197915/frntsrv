@@ -14,6 +14,7 @@ interface HtmlClickFullscreenModalProps {
   sopTitle: string;
   onClose: () => void;
   onChanged?: () => void;
+  readOnly?: boolean;
 }
 
 export default function HtmlClickFullscreenModal({
@@ -21,6 +22,7 @@ export default function HtmlClickFullscreenModal({
   sopTitle,
   onClose,
   onChanged,
+  readOnly = false,
 }: HtmlClickFullscreenModalProps) {
   const [step, setStep] = useState<FullscreenStep>("pick");
   const [data, setData] =
@@ -125,7 +127,7 @@ export default function HtmlClickFullscreenModal({
 
   // LOCAL toggle — never touches the server.
   const toggleByElement = async (el: HTMLElement) => {
-    if (busyRef.current) return;
+    if (readOnly || busyRef.current) return;
     const html = snapshotRef.current.get(el) || el.outerHTML;
     if (!html) return;
     const text = (el.textContent || "").trim();
@@ -236,7 +238,7 @@ export default function HtmlClickFullscreenModal({
   };
 
   const handleSave = async () => {
-    if (saving) return;
+    if (readOnly || saving) return;
     setSaving(true);
     setErr(null);
     try {
@@ -270,7 +272,7 @@ export default function HtmlClickFullscreenModal({
   };
 
   const handleCloseRequest = () => {
-    if (isDirty && !saving) {
+    if (!readOnly && isDirty && !saving) {
       const ok = window.confirm(
         `You have ${pendingDiff.count} unsaved change` +
           `${pendingDiff.count === 1 ? "" : "s"}. Discard and close?`,
@@ -312,6 +314,11 @@ export default function HtmlClickFullscreenModal({
               SOP exclusion picker · fullscreen
             </div>
             <h2 className="text-sm font-semibold truncate">{sopTitle}</h2>
+            {readOnly && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Read-only preview — exclusions cannot be changed.
+              </p>
+            )}
           </div>
           {/* Stepper */}
           <div className="inline-flex items-center gap-1 text-xs">
@@ -370,6 +377,7 @@ export default function HtmlClickFullscreenModal({
               excludedKeys={excludedKeys}
               loading={loading}
               dataAvailable={data?.available}
+              readOnly={readOnly}
               onToggle={toggleByBid}
               onScrollTo={scrollToBid}
             />
@@ -390,6 +398,7 @@ export default function HtmlClickFullscreenModal({
               excludedPreviews={excludedPreviews}
               keptPreviews={keptPreviews}
               reviewTab={reviewTab}
+              readOnly={readOnly}
               onSetReviewTab={setReviewTab}
               onScrollTo={scrollToBid}
               onToggleBid={toggleByBid}
@@ -401,8 +410,10 @@ export default function HtmlClickFullscreenModal({
         <div className="px-5 py-3 border-t border-border bg-background flex items-center justify-between shrink-0">
           <p className="text-xs text-muted-foreground">
             <b>{excludedKeys.size}</b> element
-            {excludedKeys.size === 1 ? "" : "s"} marked excluded.{" "}
-            {isDirty ? (
+            {excludedKeys.size === 1 ? "" : "s"} marked excluded.
+            {readOnly ? (
+              <span className="text-muted-foreground"> Read-only preview.</span>
+            ) : isDirty ? (
               <span className="text-amber-700 font-medium">
                 {pendingDiff.count} unsaved change
                 {pendingDiff.count === 1 ? "" : "s"}
@@ -445,15 +456,17 @@ export default function HtmlClickFullscreenModal({
               onClick={handleCloseRequest}
               disabled={saving}
             >
-              Cancel
+              {readOnly ? "Close" : "Cancel"}
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!isDirty || saving || loading}
-            >
-              {saving ? "Saving…" : "Save"}
-            </Button>
+            {!readOnly && (
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={!isDirty || saving || loading}
+              >
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
