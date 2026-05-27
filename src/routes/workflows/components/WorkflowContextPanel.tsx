@@ -7,6 +7,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  ChevronRight,
   Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,18 +39,6 @@ const STATUS_STYLES: Record<string, { label: string; icon: typeof Clock; tone: s
   PARTIAL:   { label: 'Partial',   icon: AlertTriangle, tone: 'text-amber-600 bg-amber-50 border-amber-200' },
   FAILED:    { label: 'Failed',    icon: AlertTriangle, tone: 'text-red-600 bg-red-50 border-red-200' },
 };
-
-function StatusBadge({ status }: { status: string }) {
-  const meta = STATUS_STYLES[status] ?? STATUS_STYLES.QUEUED;
-  const Icon = meta.icon;
-  const animated = status === 'RUNNING' || status === 'QUEUED';
-  return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-medium ${meta.tone}`}>
-      <Icon className={`h-2.5 w-2.5 ${animated ? 'animate-spin' : ''}`} />
-      {meta.label}
-    </span>
-  );
-}
 
 function groupSopsByStatus(sops: WorkflowSop[]) {
   const queued: WorkflowSop[] = [];
@@ -91,6 +80,24 @@ function sopTabCountClass(active: boolean) {
   );
 }
 
+const STATUS_DOTS: Record<string, string> = {
+  COMPLETED: 'bg-emerald-500',
+  PARTIAL:   'bg-amber-500',
+  FAILED:    'bg-red-500',
+  RUNNING:   'bg-blue-500 animate-pulse',
+  QUEUED:    'bg-amber-400 animate-pulse',
+};
+
+function StatusDot({ status }: { status: string }) {
+  const meta = STATUS_STYLES[status] ?? STATUS_STYLES.QUEUED;
+  return (
+    <span
+      className={cn('inline-block h-2 w-2 shrink-0 rounded-full', STATUS_DOTS[status] ?? 'bg-muted-foreground')}
+      title={meta.label}
+    />
+  );
+}
+
 function SopListItem({
   sop,
   onOpenGraph,
@@ -106,25 +113,34 @@ function SopListItem({
         type="button"
         onClick={() => canOpenGraph && onOpenGraph(sop)}
         disabled={!canOpenGraph}
-        className={`w-full text-left text-xs rounded-md border border-border bg-background p-2 transition-colors ${
+        className={cn(
+          'group w-full text-left text-xs rounded-md border border-border bg-background px-2.5 py-2 transition-colors',
           canOpenGraph
             ? 'hover:border-primary hover:bg-muted/50 cursor-pointer'
-            : 'opacity-80 cursor-not-allowed'
-        }`}
+            : 'opacity-70 cursor-not-allowed',
+        )}
       >
-        <div className="flex items-start justify-between gap-2">
-          <span className="font-medium truncate flex items-center gap-1 min-w-0">
-            <span className="truncate">{shortenUrl(sop.seed_url)}</span>
-            {canOpenGraph && <Network className="h-3 w-3 shrink-0 opacity-60" />}
-          </span>
-          <StatusBadge status={sop.status} />
+        <div className="flex items-center gap-2">
+          <StatusDot status={sop.status} />
+          <p className="font-medium text-foreground truncate flex-1 min-w-0">
+            {shortenUrl(sop.seed_url)}
+          </p>
+          {canOpenGraph && (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+          )}
         </div>
-        <p className="text-[10px] text-muted-foreground mt-1">
-          {canOpenGraph
-            ? 'Click to view knowledge graph'
-            : `${sop.docs_processed} doc${sop.docs_processed === 1 ? '' : 's'} parsed${
-                sop.docs_failed > 0 ? ` · ${sop.docs_failed} failed` : ''
-              }`}
+        <p className="text-[10px] text-muted-foreground mt-1 ml-4">
+          {canOpenGraph ? (
+            <span className="inline-flex items-center gap-1 group-hover:text-primary transition-colors">
+              <Network className="h-2.5 w-2.5" />
+              View SOP Graph
+            </span>
+          ) : (
+            <>
+              {sop.docs_processed} doc{sop.docs_processed === 1 ? '' : 's'} parsed
+              {sop.docs_failed > 0 && ` · ${sop.docs_failed} failed`}
+            </>
+          )}
         </p>
       </button>
     </li>
