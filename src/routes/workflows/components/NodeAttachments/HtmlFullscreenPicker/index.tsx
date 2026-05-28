@@ -215,12 +215,80 @@ export default function FullscreenAttachmentPicker({
     return resolveByBid(bid);
   };
 
+  /**
+   * Given the section element resolved by `resolveByBidFast` and the rule's
+   * condition / action text, try to narrow the highlight to the specific <tr>
+   * in the sibling decision table.  Returns the <tr> if found, otherwise null.
+   *
+   * HTML structure produced by the synthesiser:
+   *   <section>  Step N — …  </section>
+   *   <table>  Decisions for Step N … <tr>…</tr> </table>
+   *
+   * For precondition rules there is no table, so this returns null quickly.
+   */
+  const resolveToDecisionRow = (
+    sectionEl: HTMLElement,
+    condition: string,
+    action: string,
+  ): HTMLTableRowElement | null => {
+    // The decision table is either the next sibling or a sibling a few nodes away.
+    const parent = sectionEl.parentElement;
+    if (!parent) return null;
+
+    // Collect candidate tables: next sibling table + any table inside the section.
+    const candidates: HTMLTableElement[] = [];
+    let sibling = sectionEl.nextElementSibling as HTMLElement | null;
+    // Walk at most 3 siblings to find the adjacent table.
+    for (let i = 0; i < 3 && sibling; i++) {
+      if (sibling.tagName === "TABLE") {
+        candidates.push(sibling as HTMLTableElement);
+        break;
+      }
+      sibling = sibling.nextElementSibling as HTMLElement | null;
+    }
+    // Also check any table nested inside the section itself.
+    const inner = sectionEl.querySelector<HTMLTableElement>("table");
+    if (inner && !candidates.includes(inner)) candidates.push(inner);
+
+    if (candidates.length === 0) return null;
+
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+    const condNorm   = norm(condition);
+    const actionNorm = norm(action);
+    if (!condNorm && !actionNorm) return null;
+
+    for (const table of candidates) {
+      for (const row of Array.from(table.rows)) {
+        const cells = Array.from(row.cells);
+        if (cells.length < 2) continue;
+        const c0 = norm(cells[0].textContent ?? "");
+        const c1 = norm(cells[1].textContent ?? "");
+        // Both condition and action must partially match (order: full → partial).
+        const condMatch   = !condNorm   || c0 === condNorm   || c0.includes(condNorm)   || condNorm.includes(c0);
+        const actionMatch = !actionNorm || c1 === actionNorm || c1.includes(actionNorm) || actionNorm.includes(c1);
+        if (condMatch && actionMatch && (c0 !== "" || c1 !== "")) {
+          return row as HTMLTableRowElement;
+        }
+      }
+    }
+    return null;
+  };
+
   const scrollToEl = (el: HTMLElement) => {
     const pane = htmlPaneRef.current;
     if (!pane) return;
+    // Elements inside the pane share the same offsetParent as the pane itself
+    // (the fixed overlay div), so the offsetTop walk overshoots by pane.offsetTop.
+    // Instead: compute the element's absolute position in the scroll content from
+    // the current viewport coords — this is correct at any scroll position.
+    //   posInContent = pane.scrollTop + (el.top_in_viewport - pane.top_in_viewport)
     const elRect   = el.getBoundingClientRect();
     const paneRect = pane.getBoundingClientRect();
-    pane.scrollTo({ top: Math.max(0, pane.scrollTop + (elRect.top - paneRect.top) - 120), behavior: "smooth" });
+    const posInContent = pane.scrollTop + (elRect.top - paneRect.top);
+    // Subtract sticky bar height + a little breathing room
+    const stickyBar   = pane.querySelector<HTMLElement>(".sticky");
+    const stickyH     = stickyBar ? stickyBar.offsetHeight : 0;
+    pane.scrollTo({ top: Math.max(0, posInContent - stickyH - 24), behavior: "smooth" });
   };
 
   // ── Highlight selected rules in the HTML pane ──────────────────────────────
@@ -242,14 +310,21 @@ export default function FullscreenAttachmentPicker({
     for (const key of ruleKeys) {
       const rule = ruleByKey.get(key);
       const anchor = rule?.html_reference?.anchor;
-      if (!anchor) { console.log(`[FSP highlight] key=${key} → no anchor`); continue; }
-      const translatedBid = anchorToBlockId.get(anchor);
+      if (!anchor) continue;
       const sectionLabel = rule.section_label || rule.html_reference?.section_label;
-      const el = resolveByBidFast(anchor, sectionLabel);
-      console.log(`[FSP highlight] key=${key} anchor=${anchor}`, { translatedBid, sectionLabel, found: !!el });
-      if (!el) continue;
-      el.classList.add("fsp-rule-highlight");
-      if (key === lastToggledKey) scrollTarget = el;
+      const sectionEl = resolveByBidFast(anchor, sectionLabel);
+      if (!sectionEl) continue;
+
+      // For decision rules (if/then rows), try to narrow to the specific <tr>
+      // in the sibling decision table — much more precise than the whole section.
+      let highlightEl: HTMLElement = sectionEl;
+      if (rule.source === "decision" && rule.condition && rule.action) {
+        const tr = resolveToDecisionRow(sectionEl, rule.condition, rule.action);
+        if (tr) highlightEl = tr;
+      }
+
+      highlightEl.classList.add("fsp-rule-highlight");
+      if (key === lastToggledKey) scrollTarget = highlightEl;
     }
     if (scrollTarget) scrollToEl(scrollTarget);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,8 +336,13 @@ export default function FullscreenAttachmentPicker({
     const rule = ruleByKey.get(focusedRefKey);
     if (!rule?.html_reference?.anchor) return;
     const sectionLabel = rule.section_label || rule.html_reference?.section_label;
-    const el = resolveByBidFast(rule.html_reference.anchor, sectionLabel);
-    if (!el) return;
+    const sectionEl = resolveByBidFast(rule.html_reference.anchor, sectionLabel);
+    if (!sectionEl) return;
+    let el: HTMLElement = sectionEl;
+    if (rule.source === "decision" && rule.condition && rule.action) {
+      const tr = resolveToDecisionRow(sectionEl, rule.condition, rule.action);
+      if (tr) el = tr;
+    }
     el.classList.add("fsp-rule-focused");
     scrollToEl(el);
     const timer = setTimeout(() => el.classList.remove("fsp-rule-focused"), 2000);

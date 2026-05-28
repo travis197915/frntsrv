@@ -40,10 +40,23 @@ const HTML_VIEW_STYLES = `
     border-radius: 4px;
     transition: background-color 0.25s, outline 0.25s;
   }
+  /* Table rows don't support outline/border-radius — highlight via <td> cells */
+  tr.fsp-rule-highlight {
+    outline: none !important;
+  }
+  tr.fsp-rule-highlight td, tr.fsp-rule-highlight th {
+    background-color: rgba(99, 102, 241, 0.13) !important;
+    box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.55);
+    transition: background-color 0.25s;
+  }
   /* One-shot pulse when the user clicks "Source" on a rule */
   @keyframes fspFocusPulse {
     0%   { background-color: rgba(99, 102, 241, 0.40) !important; outline-color: rgba(99, 102, 241, 1) !important; }
     100% { background-color: rgba(99, 102, 241, 0.18) !important; outline-color: rgba(99, 102, 241, 0.70) !important; }
+  }
+  @keyframes fspFocusPulseTd {
+    0%   { background-color: rgba(99, 102, 241, 0.50) !important; box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 1); }
+    100% { background-color: rgba(99, 102, 241, 0.18) !important; box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.70); }
   }
   .fsp-rule-focused {
     background-color: rgba(99, 102, 241, 0.18) !important;
@@ -51,6 +64,14 @@ const HTML_VIEW_STYLES = `
     outline-offset: 3px;
     border-radius: 4px;
     animation: fspFocusPulse 1.8s ease-out;
+  }
+  tr.fsp-rule-focused {
+    outline: none !important;
+  }
+  tr.fsp-rule-focused td, tr.fsp-rule-focused th {
+    background-color: rgba(99, 102, 241, 0.18) !important;
+    box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.85);
+    animation: fspFocusPulseTd 1.8s ease-out;
   }
   .sop-synthesised-notice {
     margin-bottom: 1rem;
