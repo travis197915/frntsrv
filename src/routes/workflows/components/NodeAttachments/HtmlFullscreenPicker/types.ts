@@ -6,9 +6,7 @@ export interface SopHtmlState {
   html: string;
   loading: boolean;
   err: string | null;
-  /** `true` when showing synthesised/fallback content, not the live source */
   isFallback: boolean;
-  /** "neo4j" | "live_html" | "synthesised" | "source-html" | "" */
   source: string;
   sourceUrl: string;
 }
@@ -17,7 +15,7 @@ export interface SopEntry {
   sop_id: number;
   title: string;
   narrative: string;
-  ruleCount: number;
+  ruleCount: number | null;
 }
 
 export interface FullscreenAttachmentPickerProps {

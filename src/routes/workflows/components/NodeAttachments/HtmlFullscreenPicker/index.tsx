@@ -34,9 +34,13 @@ export default function FullscreenAttachmentPicker({
   onSave,
   readOnly = false,
 }: FullscreenAttachmentPickerProps) {
-  // ── Attachable data ────────────────────────────────────────────────────────
+  // ── Base attachable data (fast: SOP list + tools only, no rules) ───────────
   const [data, setData] = useState<WorkflowAttachable | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  // ── Per-SOP rules cache (lazy-loaded on first click per SOP) ────────────────
+  const [sopRulesCache, setSopRulesCache] = useState<Map<number, WorkflowAttachable>>(new Map());
+  const [sopRulesLoading, setSopRulesLoading] = useState(false);
 
   // ── Picker state ───────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<ActiveTab>("rules");
@@ -73,16 +77,7 @@ export default function FullscreenAttachmentPicker({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // ── Fetch attachable data ──────────────────────────────────────────────────
-  const refetch = async () => {
-    try {
-      const d = await workflowsApi.getAttachable(workflowId);
-      setData(d);
-    } catch (e) {
-      setErr(String((e as Error)?.message ?? e));
-    }
-  };
-
+  // ── Fetch base data (SOP list + tools — no rules) on mount ───────────────
   useEffect(() => {
     let cancelled = false;
     workflowsApi
@@ -91,6 +86,34 @@ export default function FullscreenAttachmentPicker({
       .catch((e) => { if (!cancelled) setErr(String(e?.message ?? e)); });
     return () => { cancelled = true; };
   }, [workflowId]);
+
+  // ── Lazy-load rules for a SOP when the user clicks it ─────────────────────
+  useEffect(() => {
+    if (!activeSopId || sopRulesCache.has(activeSopId)) return;
+    let cancelled = false;
+    setSopRulesLoading(true);
+    workflowsApi
+      .getAttachableSopRules(workflowId, activeSopId)
+      .then((d) => { if (!cancelled) setSopRulesCache((prev) => new Map(prev).set(activeSopId, d)); })
+      .catch((e) => { if (!cancelled) setErr(String(e?.message ?? e)); })
+      .finally(() => { if (!cancelled) setSopRulesLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSopId, workflowId]);
+
+  // ── Refetch current SOP's rules (e.g. after toggling an exclusion) ─────────
+  const refetch = async () => {
+    if (!activeSopId) return;
+    setSopRulesLoading(true);
+    try {
+      const d = await workflowsApi.getAttachableSopRules(workflowId, activeSopId);
+      setSopRulesCache((prev) => new Map(prev).set(activeSopId, d));
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? e));
+    } finally {
+      setSopRulesLoading(false);
+    }
+  };
 
   // ── HTML candidate extraction (for rule → element mapping) ─────────────────
   const _extractionData = useMemo(
@@ -139,11 +162,28 @@ export default function FullscreenAttachmentPicker({
     return m;
   }, [sopDomTree]);
 
+  // Rules for the currently selected SOP (null until loaded)
+  const currentSopData = activeSopId ? (sopRulesCache.get(activeSopId) ?? null) : null;
+
+  // Full lookup across ALL cached SOPs — needed for cross-SOP reference expansion
   const ruleByKey = useMemo(() => {
     const m = new Map<string, AttachableSopRule>();
-    if (data) for (const r of data.sop_rules) m.set(r.key, r);
+    for (const sopData of sopRulesCache.values()) {
+      for (const r of sopData.sop_rules) m.set(r.key, r);
+    }
     return m;
-  }, [data]);
+  }, [sopRulesCache]);
+
+  // key → sop_id lookup for picked-count badges — built from existingRules + all
+  // cached SOPs so the SOP list always shows accurate counts even for unloaded SOPs
+  const keyToSopId = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of existingRules) m.set(r.key, r.sop_id);
+    for (const sopData of sopRulesCache.values()) {
+      for (const r of sopData.sop_rules) m.set(r.key, r.sop_id);
+    }
+    return m;
+  }, [existingRules, sopRulesCache]);
 
   // Unified resolver: data-fsp-bid attr → anchor map → label search → SHA-1 hash fallback.
   const resolveByBidFast = (bid: string, sectionLabel?: string): HTMLElement | null => {
@@ -231,29 +271,36 @@ export default function FullscreenAttachmentPicker({
   }, [focusedRefKey, hashesReady, ruleByKey]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
+
+  // SOP list with rule counts — loaded rule counts take priority over null
   const availableSops = useMemo((): SopEntry[] => {
     if (!data) return [];
-    const counts = new Map<number, number>();
-    for (const r of data.sop_rules) counts.set(r.sop_id, (counts.get(r.sop_id) ?? 0) + 1);
     if (data.sops && data.sops.length > 0) {
-      return data.sops.map((s) => ({
-        sop_id: s.sop_id,
-        title: s.title,
-        narrative: s.narrative || "",
-        ruleCount: counts.get(s.sop_id) ?? 0,
-      }));
+      return data.sops.map((s) => {
+        const cached = sopRulesCache.get(s.sop_id);
+        return {
+          sop_id: s.sop_id,
+          title: s.title,
+          narrative: s.narrative || "",
+          // Use loaded count when available; fall back to null (shown as "?")
+          ruleCount: cached ? cached.sop_rules.length : (s.rule_count ?? null),
+        };
+      });
     }
+    // Fallback: derive from cached rules only
     const seen = new Map<number, SopEntry>();
-    for (const r of data.sop_rules) {
-      if (!seen.has(r.sop_id)) {
-        seen.set(r.sop_id, { sop_id: r.sop_id, title: r.sop_title, narrative: "", ruleCount: counts.get(r.sop_id) ?? 0 });
+    for (const sopData of sopRulesCache.values()) {
+      for (const r of sopData.sop_rules) {
+        if (!seen.has(r.sop_id)) {
+          seen.set(r.sop_id, { sop_id: r.sop_id, title: r.sop_title, narrative: "", ruleCount: sopData.sop_rules.length });
+        }
       }
     }
     return Array.from(seen.values());
-  }, [data]);
+  }, [data, sopRulesCache]);
 
   const groupedBySop = useMemo((): SopGroup[] => {
-    if (!data) return [];
+    if (!currentSopData) return [];
     const q = query.trim().toLowerCase();
     const matchesQuery = (r: AttachableSopRule) =>
       !q ||
@@ -264,9 +311,7 @@ export default function FullscreenAttachmentPicker({
       r.sop_title.toLowerCase().includes(q) ||
       r.codes.some((c) => c.toLowerCase().includes(q));
 
-    const filtered = data.sop_rules.filter(
-      (r) => (activeSopId === null || r.sop_id === activeSopId) && matchesQuery(r),
-    );
+    const filtered = currentSopData.sop_rules.filter(matchesQuery);
 
     const bySop = new Map<number, SopGroup>();
     for (const r of filtered) {
@@ -290,7 +335,7 @@ export default function FullscreenAttachmentPicker({
       section.rules.push(r);
     }
     return Array.from(bySop.values());
-  }, [data, query, activeSopId, availableSops]);
+  }, [currentSopData, query, availableSops]);
 
   const filteredTools = useMemo(() => {
     if (!data) return [];
@@ -306,9 +351,9 @@ export default function FullscreenAttachmentPicker({
 
   const exclusionByKey = useMemo(() => {
     const m = new Map<string, AttachableExclusion>();
-    if (data?.exclusions) for (const e of data.exclusions) m.set(e.key, e);
+    if (currentSopData?.exclusions) for (const e of currentSopData.exclusions) m.set(e.key, e);
     return m;
-  }, [data]);
+  }, [currentSopData]);
 
   const pickedSequences = useMemo(() => {
     const m = new Map<string, number>();
@@ -388,7 +433,10 @@ export default function FullscreenAttachmentPicker({
 
   const handleSave = () => {
     if (!data) return;
-    const ruleDataByKey = new Map(data.sop_rules.map((r) => [r.key, r]));
+    // Build lookup from ALL cached SOP rules (user may have picked across multiple SOPs)
+    const allCachedRules: AttachableSopRule[] = [];
+    for (const sopData of sopRulesCache.values()) allCachedRules.push(...sopData.sop_rules);
+    const ruleDataByKey = new Map(allCachedRules.map((r) => [r.key, r]));
     const existingKeys = new Set(existingRules.map((r) => r.key));
     const ordered: AttachedSopRule[] = [];
 
@@ -451,7 +499,7 @@ export default function FullscreenAttachmentPicker({
         <PickerHeader
           readOnly={readOnly}
           activeTab={activeTab}
-          sopRulesCount={data?.sop_rules.length}
+          sopRulesCount={currentSopData?.sop_rules.length}
           toolCallsCount={data?.tool_calls.length}
           query={query}
           onClose={onClose}
@@ -469,7 +517,7 @@ export default function FullscreenAttachmentPicker({
                   <SopListSidebar
                     availableSops={availableSops}
                     picked={picked}
-                    ruleByKey={ruleByKey}
+                    keyToSopId={keyToSopId}
                     data={data}
                     err={err}
                     onSelectSop={setActiveSopId}
@@ -479,7 +527,8 @@ export default function FullscreenAttachmentPicker({
                     sopId={activeSopId}
                     sopMeta={activeSopMeta}
                     selectedInSop={selectedInSop}
-                    data={data}
+                    data={currentSopData}
+                    rulesLoading={sopRulesLoading}
                     groupedBySop={groupedBySop}
                     picked={picked}
                     pickedSequences={pickedSequences}

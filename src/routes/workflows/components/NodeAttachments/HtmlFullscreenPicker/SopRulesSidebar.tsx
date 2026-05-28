@@ -10,6 +10,7 @@ interface Props {
   sopMeta: SopEntry | null;
   selectedInSop: number;
   data: WorkflowAttachable | null;
+  rulesLoading?: boolean;
   groupedBySop: SopGroup[];
   picked: Set<string>;
   pickedSequences: Map<string, number>;
@@ -34,6 +35,7 @@ export default function SopRulesSidebar({
   sopMeta,
   selectedInSop,
   data,
+  rulesLoading = false,
   groupedBySop,
   picked,
   pickedSequences,
@@ -69,7 +71,7 @@ export default function SopRulesSidebar({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto min-h-0">
-        {!data ? (
+        {rulesLoading || !data ? (
           <div className="p-6 space-y-2">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="h-12 rounded bg-muted animate-pulse" />

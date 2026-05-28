@@ -1,12 +1,12 @@
 import { BookOpen, ChevronRight } from "lucide-react";
 import { isRulePickKey } from "@/utils/nodeAttachments";
-import type { AttachableSopRule, WorkflowAttachable } from "@/lib/workflowsApi";
+import type { WorkflowAttachable } from "@/lib/workflowsApi";
 import type { SopEntry } from "./types";
 
 interface Props {
   availableSops: SopEntry[];
   picked: Set<string>;
-  ruleByKey: Map<string, AttachableSopRule>;
+  keyToSopId: Map<string, number>;
   data: WorkflowAttachable | null;
   err: string | null;
   onSelectSop: (id: number) => void;
@@ -15,7 +15,7 @@ interface Props {
 export default function SopListSidebar({
   availableSops,
   picked,
-  ruleByKey,
+  keyToSopId,
   data,
   err,
   onSelectSop,
@@ -45,13 +45,12 @@ export default function SopListSidebar({
             </p>
           </div>
         )}
-        {data && (
+          {data && (
           <div className="divide-y divide-border">
             {availableSops.map((sop) => {
-              const sopPickedCount = Array.from(picked).filter((k) => {
-                if (!isRulePickKey(k)) return false;
-                return ruleByKey.get(k)?.sop_id === sop.sop_id;
-              }).length;
+              const sopPickedCount = Array.from(picked).filter(
+                (k) => isRulePickKey(k) && keyToSopId.get(k) === sop.sop_id,
+              ).length;
 
               return (
                 <button
@@ -74,9 +73,15 @@ export default function SopListSidebar({
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                        {sop.ruleCount} rules
-                      </span>
+                      {sop.ruleCount !== null ? (
+                        <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                          {sop.ruleCount} rules
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border animate-pulse">
+                          rules
+                        </span>
+                      )}
                       {sopPickedCount > 0 && (
                         <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                           {sopPickedCount} selected

@@ -276,6 +276,15 @@ export const workflowsApi = {
     );
   },
 
+  async getAttachableSopRules(
+    id: string,
+    sopId: number,
+  ): Promise<WorkflowAttachable> {
+    return builderClient.get<WorkflowAttachable>(
+      `/workflows/${id}/attachable/?sop_id=${sopId}`,
+    );
+  },
+
   async attach(
     id: string,
     input: { sopUrls?: string[]; runtimeAgents?: RuntimeAgentInput[] },

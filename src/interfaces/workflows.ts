@@ -41,6 +41,7 @@ export interface AttachableSopSummary {
   narrative: string;
   source_url?: string;
   doc_format?: string;
+  rule_count?: number | null;
 }
 
 export interface AttachableTool {
