@@ -126,74 +126,86 @@ function flatten(graph: BuilderGraph): { nodes: FlatNode[]; edges: FlatEdge[] } 
 }
 
 /** xyflow lists → Django bulk-save payload. */
-function buildGraphPayload(nodes: FlatNode[], _edges: FlatEdge[]) {
-  const FALLBACK_WA = "Canvas";
-  const FALLBACK_WB = "Default";
-  const groups = new Map<
-    string,
-    {
-      workAreaId?: string;
-      workAreaName: string;
-      workbenchId?: string;
-      workbenchName: string;
-      shapes: FlatNode[];
-    }
-  >();
+function buildGraphPayload(allNodes: FlatNode[], _edges: FlatEdge[]) {
+  // Filter out xyflow workarea *container* nodes — Django shapes require a
+  // `definition_slug` and workareas don't have one.
+  const nodes = allNodes.filter(
+    (n) => (n as unknown as { type: string }).type !== "workarea",
+  );
 
-  for (const node of nodes) {
-    const waKey = node.data.workAreaId ?? FALLBACK_WA;
-    const wbKey = node.data.workbenchId ?? FALLBACK_WB;
-    const key = `${waKey}::${wbKey}`;
-    let group = groups.get(key);
-    if (!group) {
-      group = {
-        workAreaId: node.data.workAreaId,
-        workAreaName: node.data.workAreaId ? FALLBACK_WA : FALLBACK_WA,
-        workbenchId: node.data.workbenchId,
-        workbenchName: node.data.workbenchId ? FALLBACK_WB : FALLBACK_WB,
-        shapes: [],
-      };
-      groups.set(key, group);
-    }
-    group.shapes.push(node);
-  }
+  // All shapes are sent in a SINGLE work_area / workbench entry.
+  //
+  // Why: the previous multi-group approach split fresh nodes (no workAreaId)
+  // into a separate "Canvas" group that Django matched by *name* rather than
+  // UUID. Because the existing work_area is also named "Canvas", Django ended
+  // up processing the same work_area twice — the second pass overwrote the
+  // workbenches from the first pass, deleting the previously-saved shapes.
+  //
+  // Resolution: look for the canonical IDs from any node that was already
+  // persisted (workAreaId / workbenchId set by `flatten()` on GET).  When
+  // found, send `{ id }` so Django updates in place.  For a brand-new canvas
+  // that has never been saved, fall back to `client_id` so Django creates it.
+  const savedNode = nodes.find((n) => n.data.workAreaId);
+  const workAreaId = savedNode?.data.workAreaId;
+  const workbenchId = savedNode?.data.workbenchId;
 
-  const wbClientIdOf = (wbId: string | undefined) =>
-    wbId ? undefined : "wb-default";
-
-  const work_areas = Array.from(groups.values()).map((g, waIdx) => ({
-    ...(g.workAreaId
-      ? { id: g.workAreaId }
-      : { client_id: `wa-default-${waIdx}` }),
-    name: g.workAreaName,
-    order: waIdx,
-    workbenches: [
-      {
-        ...(g.workbenchId
-          ? { id: g.workbenchId }
-          : { client_id: wbClientIdOf(g.workbenchId) }),
-        name: g.workbenchName,
-        order: 0,
-        shapes: g.shapes.map((n, i) => ({
-          ...(n.id && n.id.length === 36
-            ? { id: n.id }
-            : { client_id: n.id }),
-          definition_slug: n.data.definitionSlug,
-          label: n.data.label || "",
-          description: n.data.description || "",
-          position_x: n.position.x,
-          position_y: n.position.y,
-          width: n.style?.width ?? undefined,
-          height: n.style?.height ?? undefined,
-          properties: n.data.properties ?? {},
-          style: n.data.style ?? {},
-          order: i,
-        })),
-      },
-    ],
+  const shapes = nodes.map((n, i) => ({
+    ...(n.id && n.id.length === 36
+      ? { id: n.id }
+      : { client_id: n.id }),
+    definition_slug: n.data.definitionSlug,
+    label: n.data.label || "",
+    description: n.data.description || "",
+    position_x: n.position.x,
+    position_y: n.position.y,
+    width: n.style?.width ?? undefined,
+    height: n.style?.height ?? undefined,
+    properties: n.data.properties ?? {},
+    style: n.data.style ?? {},
+    order: i,
   }));
 
-  return { work_areas, connections: [] as never[] };
+  const work_areas = [
+    {
+      ...(workAreaId ? { id: workAreaId } : { client_id: "wa-default-0" }),
+      name: "Canvas",
+      order: 0,
+      workbenches: [
+        {
+          ...(workbenchId ? { id: workbenchId } : { client_id: "wb-default" }),
+          name: "Default",
+          order: 0,
+          shapes,
+        },
+      ],
+    },
+  ];
+
+  // Build connections from the edges array.
+  // Django resolves each endpoint by UUID (source_shape_id) when the node was
+  // already persisted, or by client_id (source_client_id) for nodes that were
+  // just created in this same payload.  A 36-char string is treated as a UUID.
+  const isUuid = (s: string) => s.length === 36;
+
+  const connections = _edges
+    .filter((e) => e.source && e.target && e.source !== e.target)
+    .map((e) => ({
+      ...(e.id && isUuid(e.id) ? { id: e.id } : {}),
+      ...(isUuid(e.source)
+        ? { source_shape_id: e.source }
+        : { source_client_id: e.source }),
+      ...(isUuid(e.target)
+        ? { target_shape_id: e.target }
+        : { target_client_id: e.target }),
+      ...(e.sourceHandle ? { source_port: e.sourceHandle } : {}),
+      ...(e.targetHandle ? { target_port: e.targetHandle } : {}),
+      ...(e.label ? { label: e.label } : {}),
+      ...(e.data?.conditionLabel
+        ? { condition_label: e.data.conditionLabel }
+        : {}),
+    }));
+
+  return { work_areas, connections };
 }
 
 function toDetail(graph: BuilderGraph): WorkflowDetail {

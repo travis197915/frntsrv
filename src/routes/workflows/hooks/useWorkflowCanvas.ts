@@ -100,6 +100,7 @@ export function useWorkflowCanvas(
   const [workflowMeta, setWorkflowMeta] = useState<WorkflowMeta>({ ...DEFAULT_META, id: workflowId ?? '' });
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const defaultEdgeType: RFEdgeType = 'smoothstep';
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const rfInstance = useRef<ReactFlowInstance | null>(null);
@@ -130,12 +131,16 @@ export function useWorkflowCanvas(
 
       const markerColor = edgeMarkerColor();
 
-      // Edges are a frontend-only concern — read from localStorage instead
-      // of the workflow JSON.  Nodes come from Django, edges come from the
-      // user's browser.
+      // Prefer edges from the server payload (persisted via PUT /graph/).
+      // Fall back to localStorage for workflows saved before edges were
+      // persisted server-side, or for edges drawn in the current session
+      // before the first save.
       const wfId = (meta?.id) ?? workflowMeta.id;
+      const serverEdges = (canvas.edges ?? []) as Partial<WorkflowEdge>[];
       const stored = readLocalEdges(wfId) as Partial<WorkflowEdge>[];
-      const loadedEdges: WorkflowEdge[] = stored.map((e) => ({
+      const edgeSource = serverEdges.length > 0 ? serverEdges : stored;
+
+      const loadedEdges: WorkflowEdge[] = edgeSource.map((e) => ({
         id:           e.id ?? `edge_${Math.random().toString(36).slice(2)}`,
         source:       e.source ?? '',
         target:       e.target ?? '',
@@ -146,6 +151,12 @@ export function useWorkflowCanvas(
         ...(e.label  ? { label: e.label } : {}),
         ...(e.data   ? { data:  e.data  } : {}),
       })).filter((e) => e.source && e.target);
+
+      // Keep localStorage in sync so that pre-save session edges are also
+      // persisted locally (the effect below will overwrite on next render).
+      if (serverEdges.length > 0) {
+        writeLocalEdges(wfId, serverEdges);
+      }
 
       setNodes(loadedNodes);
       setEdges(loadedEdges);
@@ -225,6 +236,7 @@ export function useWorkflowCanvas(
         target: e.target,
         sourceHandle: e.sourceHandle ?? undefined,
         targetHandle: e.targetHandle ?? undefined,
+        ...(typeof e.label === 'string' && e.label ? { label: e.label } : {}),
         data: e.data as any,
       })),
       viewport: viewport ? { x: viewport.x, y: viewport.y, zoom: viewport.zoom } : undefined,
@@ -239,6 +251,7 @@ export function useWorkflowCanvas(
     }
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       const serialized = serializeCanvas();
       const canvas = JSON.parse(serialized) as WorkflowCanvasJSON;
@@ -257,6 +270,10 @@ export function useWorkflowCanvas(
         setWorkflowMeta((m) => ({ ...m, id: result.id! }));
       }
       setIsDirty(false);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to save workflow. Please try again.';
+      setSaveError(msg);
     } finally {
       setIsSaving(false);
     }
@@ -515,6 +532,8 @@ export function useWorkflowCanvas(
     updateWorkflowMeta,
     isDirty,
     isSaving,
+    saveError,
+    setSaveError,
     saveWorkflow,
     loadFromJSON,
     serializeCanvas,

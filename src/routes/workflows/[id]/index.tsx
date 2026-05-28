@@ -248,6 +248,8 @@ function WorkflowBuilderInner() {
     updateWorkflowMeta,
     isDirty,
     isSaving,
+    saveError,
+    setSaveError,
     saveWorkflow,
     loadFromJSON,
     setSelectedNodeId,
@@ -606,6 +608,21 @@ function WorkflowBuilderInner() {
           )}
         </div>
       </header>
+
+      {/* Save error banner */}
+      {saveError && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-red-500/10 border-b border-red-500/20 text-red-600 dark:text-red-400 text-xs shrink-0">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">Save failed: {saveError}</span>
+          <button
+            type="button"
+            onClick={() => setSaveError(null)}
+            className="text-red-400 hover:text-red-600 transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Execution error banner */}
       {executionError && (
