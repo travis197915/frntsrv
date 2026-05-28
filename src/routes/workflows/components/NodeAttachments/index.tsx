@@ -5,7 +5,7 @@ import { toolPickKey } from "@/utils/nodeAttachments";
 import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 import AttachedRuleCard from "./AttachedRuleCard";
 import GroupedToolsList from "./GroupedToolsList";
-import RulePicker from "./RulePicker";
+import FullscreenAttachmentPicker from "./HTMLFullscreenPicker";
 
 interface NodeAttachmentsProps {
   workflowId: string;
@@ -128,7 +128,7 @@ export default function NodeAttachments({
       </div>
 
       {open && (
-        <RulePicker
+        <FullscreenAttachmentPicker
           workflowId={workflowId}
           selectedKeys={selectedKeys}
           existingRules={rules}

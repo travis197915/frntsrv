@@ -94,7 +94,7 @@ src/
 │   ├── agents/                     # Agent registry
 │   ├── activity/                   # Run history
 │   ├── ai-usage/                   # Mock token usage (no backend)
-│   ├── settings/                   # Password + license info
+│   ├── settings/                   # Password, appearance, user admin
 │   └── users/                      # User list + detail
 ├── components/                     # Shared UI (Sidebar/, ui/, Loader, …)
 ├── contexts/AuthContext.tsx
@@ -137,7 +137,7 @@ Import from `@/lib/api` in routes — not from `@/lib/clients` directly.
 | `/activity`        | Run list                                                 |
 | `/activity/:runId` | Run trace                                                |
 | `/ai-usage`        | Hardcoded demo data                                      |
-| `/settings`        | License decode; password change (admin only)             |
+| `/settings`        | Password change (admin only), appearance, user admin     |
 | `/users`           | User list (sidebar visibility from Django `min_role`)    |
 | `/users/:id`       | User detail; role/status edits admin-only                |
 

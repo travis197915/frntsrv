@@ -205,7 +205,7 @@ Public: `/login`, `/register`, `/unauthorized`. Everything else requires auth vi
 | `/activity` | `GET /api/runs/` |
 | `/users` | User list — visible per Django nav `min_role` |
 | `/users/:id` | User detail; role/status controls admin-only |
-| `/settings` | Password change + license decode (password UI admin-only) |
+| `/settings` | Password change (admin only) + appearance |
 | `/ai-usage` | **Mock data — no backend wired** |
 
 Sidebar "Profile" navigates to `/users/:id` for the current user (no separate `/profile` route).

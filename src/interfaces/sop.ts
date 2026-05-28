@@ -228,5 +228,34 @@ export interface SopSourceHtmlResponse {
   available: boolean;
   html: string;
   reason: string;
+  is_fallback?: boolean;
   excluded_target_keys: string[];
+}
+
+// ── SOP DOM-tree (structured block tree from ingestion) ─────────────────────
+
+export interface DomTreeNode {
+  block_id: string;
+  tag: string | null;
+  kind: string | null;
+  sub_label: string | null;
+  section_id: string | null;
+  label: string | null;
+  text: string | null;
+  html_snippet: string | null;
+  depth: number | null;
+  order: number | null;
+  is_root: boolean | null;
+  derived_rules: unknown[];
+  children: DomTreeNode[];
+}
+
+export interface DomTreeResponse {
+  sop_id: number;
+  title: string;
+  neo4j_sop_id: string;
+  source: "neo4j" | "live_html" | "synthesised" | "unavailable" | string;
+  block_count: number;
+  root_count: number;
+  roots: DomTreeNode[];
 }

@@ -1,13 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  LogOut,
-  Users,
-  ShieldCheck,
-  Plus,
-  RefreshCw,
-  Upload,
-} from "lucide-react";
+import { LogOut, Users, Plus } from "lucide-react";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import { ErrorAlert } from "@/components/ErrorAlert";
@@ -16,12 +9,8 @@ import { Button } from "@/components/ui/button";
 import { useTheme, type Theme } from "@/utils/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getRoleLabel } from "@/utils/user";
-import { getToken, decodeJwtPayload } from "@/utils/auth";
 import { relayClient, usersClient } from "@/lib/clients";
 import { FormPanel, FormInput } from "@/components/FormPanel";
-import { makeClient } from "@/lib/apiClient";
-
-const licenseClient = makeClient("/license");
 
 function getInitials(
   name: string | null | undefined,
@@ -75,42 +64,6 @@ export default function SettingsPage() {
   const { user, logout, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [showAddUser, setShowAddUser] = useState(false);
-  const [uploadState, setUploadState] = useState<
-    "idle" | "uploading" | "success" | "error"
-  >("idle");
-  const [uploadMessage, setUploadMessage] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const {
-    data: license,
-    isLoading: licenseLoading,
-    refetch: refetchLicense,
-  } = useQuery({
-    queryKey: ["dashboard", "license"],
-    queryFn: () => {
-      const token = getToken();
-      if (!token) return null;
-      const payload = decodeJwtPayload(token);
-      const lic = {
-        clientId: payload.clientId as string | undefined,
-        tier: payload.tier as string | undefined,
-        maxAgents: payload.maxAgents as number | undefined,
-        features: payload.features as string[] | undefined,
-        issuedAt: payload.issuedAt as string | undefined,
-        expiresAt: payload.expiresAt as string | undefined,
-        licenseId: payload.licenseId as string | undefined,
-        daysLeft: payload.daysLeft as number | undefined,
-        status: payload.licenseStatus as string | undefined,
-      };
-      const hasLicenseData =
-        lic.status != null ||
-        lic.tier != null ||
-        lic.clientId != null ||
-        lic.daysLeft != null;
-      return hasLicenseData ? lic : null;
-    },
-    staleTime: Infinity,
-  });
 
   const {
     data: usersData,
@@ -148,32 +101,6 @@ export default function SettingsPage() {
 
   const users = usersData?.nodes ?? [];
 
-  const handleLicenseUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (!fileInputRef.current) return;
-    fileInputRef.current.value = "";
-    if (!file) return;
-
-    setUploadState("uploading");
-    setUploadMessage("");
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const data: any = await licenseClient.post("/upload", formData);
-      setUploadState("success");
-      const tier = data.license?.tier ? `${data.license.tier} tier, ` : "";
-      setUploadMessage(
-        `License updated — ${tier}${data.license?.daysLeft ?? "?"}d remaining.`,
-      );
-    } catch (err: any) {
-      setUploadState("error");
-      setUploadMessage(err?.message ?? "Upload failed.");
-    }
-  };
-
   const handleAddUser = async (values: Record<string, unknown>) => {
     await signupUser({
       email: String(values.email),
@@ -188,7 +115,7 @@ export default function SettingsPage() {
   return (
     <SidebarLayout
       title="Settings"
-      subtitle="Account, license, and team management"
+      subtitle="Account and team management"
     >
       <div className="max-w-3xl space-y-6">
         {/* Profile */}
@@ -231,143 +158,6 @@ export default function SettingsPage() {
 
         {/* Appearance */}
         <AppearanceSection />
-
-        {/* License */}
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              License
-            </h2>
-            <div className="flex items-center gap-2">
-              {isAdmin && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".cert"
-                    className="hidden"
-                    onChange={handleLicenseUpload}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadState === "uploading"}
-                  >
-                    <Upload
-                      className={`h-3 w-3 mr-1.5 ${uploadState === "uploading" ? "animate-pulse" : ""}`}
-                    />
-                    {uploadState === "uploading"
-                      ? "Uploading…"
-                      : "Upload License"}
-                  </Button>
-                </>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => refetchLicense()}
-                disabled={licenseLoading}
-              >
-                <RefreshCw
-                  className={`h-3 w-3 mr-1.5 ${licenseLoading ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-            </div>
-          </div>
-          {uploadMessage && (
-            <p
-              className={`text-xs mb-4 px-3 py-2 rounded ${
-                uploadState === "success"
-                  ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                  : "bg-red-500/10 text-red-600 dark:text-red-400"
-              }`}
-            >
-              {uploadMessage}
-            </p>
-          )}
-          {licenseLoading && !license ? (
-            <div className="flex justify-center py-4">
-              <Loader />
-            </div>
-          ) : !license ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No license file found.
-            </p>
-          ) : (
-            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-              <div>
-                <dt className="text-muted-foreground">Status</dt>
-                <dd className="mt-1">
-                  <StatusBadge
-                    status={(license.status ?? "unknown").toLowerCase()}
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Tier</dt>
-                <dd className="mt-1 font-medium text-foreground capitalize">
-                  {license.tier}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Days Left</dt>
-                <dd
-                  className={`mt-1 font-bold ${
-                    (license.daysLeft ?? 0) <= 0
-                      ? "text-red-500"
-                      : (license.daysLeft ?? 0) < 30
-                        ? "text-amber-500"
-                        : "text-green-500"
-                  }`}
-                >
-                  {(license.daysLeft ?? 0) <= 0
-                    ? "Expired"
-                    : `${license.daysLeft ?? 0}d`}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Client ID</dt>
-                <dd className="mt-1 font-mono text-foreground truncate">
-                  {license.clientId}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Max Agents</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {license.maxAgents}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Expires</dt>
-                <dd className="mt-1 text-foreground">{license.expiresAt}</dd>
-              </div>
-              {(license.features ?? []).length > 0 && (
-                <div className="col-span-2 sm:col-span-3">
-                  <dt className="text-muted-foreground mb-1">Features</dt>
-                  <dd className="flex flex-wrap gap-1">
-                    {(license.features ?? []).map((f: string) => (
-                      <span
-                        key={f}
-                        className="bg-muted px-1.5 py-0.5 rounded text-foreground"
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </dd>
-                </div>
-              )}
-              <div className="col-span-2 sm:col-span-3">
-                <dt className="text-muted-foreground">License ID</dt>
-                <dd className="mt-1 font-mono text-muted-foreground text-xs">
-                  {license.licenseId}
-                </dd>
-              </div>
-            </dl>
-          )}
-        </div>
 
         {/* User Management — admin only */}
         {isAdmin && (

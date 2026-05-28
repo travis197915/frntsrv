@@ -34,6 +34,7 @@ export { workflowsApi, toolRegistryApi } from "./workflowsApi";
 // ── SOP exclusion API ───────────────────────────────────────────────────────
 import { ingestClient } from "./clients";
 import type {
+  DomTreeResponse,
   SopExclusion,
   SopExclusionListResponse,
   SopExclusionToggleResponse,
@@ -79,6 +80,24 @@ export const sopExclusionsApi = {
   getSourceHtml(sopId: number): Promise<SopSourceHtmlResponse> {
     return ingestClient.get<SopSourceHtmlResponse>(
       `/sops/${sopId}/source-html/`,
+    );
+  },
+  /**
+   * Fetch the full DOM tree for a SOP.
+   *
+   * `source=live` builds the tree from Neo4j first, then falls back to
+   * fetching the live source URL, then synthesises from audit-table rows —
+   * so it always returns *something* even when `source-html` says unavailable.
+   * `source=neo4j` is the default server-side, but uses `live` here so the
+   * caller gets a result even for SOPs that haven't been (re-)ingested via
+   * the html_dom_writer yet.
+   */
+  getDomTree(
+    sopId: number,
+    source: "neo4j" | "live" = "live",
+  ): Promise<DomTreeResponse> {
+    return ingestClient.get<DomTreeResponse>(
+      `/sops/${sopId}/dom-tree/?source=${source}`,
     );
   },
 };

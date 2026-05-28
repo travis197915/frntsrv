@@ -1,7 +1,6 @@
 /**
- * Sidebar groups are now fully data-driven — the layout, labels, icons and
- * visibility-by-role are loaded from the Django `/api/builder/ui/navigation/`
- * endpoint and grouped by `section`.  Nothing about the chrome is hardcoded.
+ * Sidebar nav from Django `/api/builder/ui/navigation/`, filtered and flattened
+ * for the current rollout (no section headings).
  */
 import * as Icons from 'lucide-react';
 import { Loader2 } from 'lucide-react';
@@ -10,6 +9,9 @@ import { useMemo } from 'react';
 import { useNavigation } from '@/lib/catalogApi';
 import { SidebarNavItem } from './SidebarNavItem';
 import type { NavItem } from '@/lib/api';
+
+/** Temporary allow-list — expand when Agents, Activity, AI Usage launch. */
+const VISIBLE_NAV_SLUGS = new Set(['dashboard', 'workflows', 'users', 'settings']);
 
 /** Resolve a lucide icon name to a component, falling back to `Circle`. */
 function lookupIcon(name: string): typeof Icons.Circle {
@@ -20,8 +22,6 @@ function lookupIcon(name: string): typeof Icons.Circle {
   return Icons.Circle;
 }
 
-type Section = { label: string; items: NavItem[] };
-
 interface PlatformSectionProps {
   onNavClick?: () => void;
 }
@@ -29,40 +29,13 @@ interface PlatformSectionProps {
 export function PlatformSection({ onNavClick }: PlatformSectionProps) {
   const { data: items, isLoading: loading, error } = useNavigation();
 
-  /**
-   * Items with no `section` stay at the top (the "Dashboard" row).
-   * Sections follow the backend `order` field (first item in a section
-   * sets its position), not alphabetical section names.
-   */
-  const { topLevel, sections } = useMemo(() => {
-    const sorted = [...(items ?? [])].sort(
-      (a, b) => a.order - b.order || a.label.localeCompare(b.label),
-    );
-
-    const top: NavItem[] = [];
-    const buckets = new Map<string, NavItem[]>();
-    const sectionOrder: string[] = [];
-
-    for (const item of sorted) {
-      if (!item.section) {
-        top.push(item);
-        continue;
-      }
-      if (!buckets.has(item.section)) {
-        buckets.set(item.section, []);
-        sectionOrder.push(item.section);
-      }
-      buckets.get(item.section)!.push(item);
-    }
-
-    return {
-      topLevel: top,
-      sections: sectionOrder.map<Section>((label) => ({
-        label,
-        items: buckets.get(label) ?? [],
-      })),
-    };
-  }, [items]);
+  const navItems = useMemo(
+    () =>
+      [...(items ?? [])]
+        .filter((item) => VISIBLE_NAV_SLUGS.has(item.slug))
+        .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label)),
+    [items],
+  );
 
   if (loading) {
     return (
@@ -94,19 +67,8 @@ export function PlatformSection({ onNavClick }: PlatformSectionProps) {
   };
 
   return (
-    <div className="space-y-1">
-      {topLevel.map(renderItem)}
-
-      {sections.map((section) => (
-        <div key={section.label}>
-          <div className="pt-4 pb-1 border-t border-border/60 mt-2">
-            <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              {section.label}
-            </p>
-          </div>
-          <nav className="space-y-0.5">{section.items.map(renderItem)}</nav>
-        </div>
-      ))}
-    </div>
+    <nav className="space-y-0.5">
+      {navItems.map(renderItem)}
+    </nav>
   );
 }
