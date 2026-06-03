@@ -19,6 +19,9 @@ export const ingestClient = makeClient("/api/ingest");
 /** Tool registry — /api/agent-tools/* (proxied to Django). */
 export const toolsClient = makeClient("/api/agent-tools");
 
+/** Execution engine — /api/execute/* (proxied to Django). */
+export const executeClient = makeClient("/api/execute");
+
 /** User management — /api/users/* (Node, no proxy). */
 export const usersClient = makeClient("/api/users");
 

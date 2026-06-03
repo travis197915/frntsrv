@@ -1,4 +1,5 @@
 import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
+import type { BuilderSopVersion } from "@/interfaces/builder";
 
 export type ActiveTab = "rules" | "tools";
 
@@ -16,6 +17,7 @@ export interface SopEntry {
   title: string;
   narrative: string;
   ruleCount: number | null;
+  sop_version?: BuilderSopVersion | null;
 }
 
 export interface FullscreenAttachmentPickerProps {

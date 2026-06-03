@@ -1,6 +1,7 @@
 import { BookOpen, ChevronRight } from "lucide-react";
 import { isRulePickKey } from "@/utils/nodeAttachments";
 import type { WorkflowAttachable } from "@/lib/workflowsApi";
+import SopVersionBadges from "@/routes/workflows/components/SopVersionBadges";
 import type { SopEntry } from "./types";
 
 interface Props {
@@ -72,6 +73,7 @@ export default function SopListSidebar({
                         {sop.narrative}
                       </p>
                     )}
+                    <SopVersionBadges version={sop.sop_version} className="mt-1.5" />
                     <div className="flex items-center gap-2 mt-1.5">
                       {sop.ruleCount !== null ? (
                         <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">

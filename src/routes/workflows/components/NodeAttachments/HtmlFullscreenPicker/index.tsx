@@ -362,8 +362,8 @@ export default function FullscreenAttachmentPicker({
           sop_id: s.sop_id,
           title: s.title,
           narrative: s.narrative || "",
-          // Use loaded count when available; fall back to null (shown as "?")
           ruleCount: cached ? cached.sop_rules.length : (s.rule_count ?? null),
+          sop_version: s.sop_version ?? null,
         };
       });
     }

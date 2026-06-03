@@ -7,11 +7,13 @@
 export { makeClient, ApiError } from "./apiClient";
 
 // ── Named client instances (backward-compatible aliases) ────────────────────
+export { executionApi, formatExecutionLogLine } from "./executionApi";
 export {
   relayClient as authApi,
   builderClient as api,
   ingestClient as ingestApi,
   toolsClient as toolsApi,
+  executeClient,
   usersClient as usersApi,
   apiClient,
 } from "./clients";

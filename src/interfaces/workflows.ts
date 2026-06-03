@@ -1,4 +1,8 @@
-import type { BuilderAttachedAgent, BuilderSopStatus } from "./builder";
+import type {
+  BuilderAttachedAgent,
+  BuilderSopStatus,
+  BuilderSopVersion,
+} from "./builder";
 
 // ── Auto-build progress (polled while the canvas is generated from SOPs) ───
 
@@ -86,6 +90,7 @@ export interface AttachableSopSummary {
   source_url?: string;
   doc_format?: string;
   rule_count?: number | null;
+  sop_version?: BuilderSopVersion | null;
 }
 
 export interface AttachableTool {

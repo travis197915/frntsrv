@@ -29,6 +29,7 @@ import {
 import SopGraphDialog from './SopGraphDialog';
 import AddSopsDialog from './AddSopsDialog';
 import SopReconcileDialog from './SopReconcileDialog';
+import SopVersionBadges from './SopVersionBadges';
 import { cn } from '@/utils/utils';
 
 type SopTab = 'queued' | 'completed' | 'failed';
@@ -150,6 +151,7 @@ function SopListItem({
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-primary transition-colors" />
           )}
         </div>
+        <SopVersionBadges version={sop.sop_version} className="mt-1.5 ml-4" />
         <p className="text-[10px] text-muted-foreground mt-1 ml-4">
           {canOpenGraph ? (
             <span className="inline-flex items-center gap-1 group-hover:text-primary transition-colors">

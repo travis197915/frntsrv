@@ -72,6 +72,14 @@ export interface DashboardWidget {
 
 // ── Builder workflow types (Django) ─────────────────────────────────────────
 
+export interface BuilderSopVersion {
+  activation_status: string | null;
+  is_current: boolean;
+  version_number: number;
+  current_sop_id: number | null;
+  is_approved: boolean;
+}
+
 export interface BuilderSopStatus {
   job_id: string;
   seed_url: string;
@@ -81,6 +89,7 @@ export interface BuilderSopStatus {
   created_at: string;
   completed_at: string | null;
   audit_sop_id: number | null;
+  sop_version?: BuilderSopVersion | null;
 }
 
 export interface BuilderAttachedAgent {
