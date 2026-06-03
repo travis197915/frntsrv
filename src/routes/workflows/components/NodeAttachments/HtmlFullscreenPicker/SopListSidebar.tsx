@@ -1,6 +1,7 @@
 import { BookOpen, ChevronRight } from "lucide-react";
 import { isRulePickKey } from "@/utils/nodeAttachments";
 import type { WorkflowAttachable } from "@/lib/workflowsApi";
+import SopReviewActions from "@/routes/workflows/components/SopReviewActions";
 import SopVersionBadges from "@/routes/workflows/components/SopVersionBadges";
 import type { SopEntry } from "./types";
 
@@ -11,6 +12,8 @@ interface Props {
   data: WorkflowAttachable | null;
   err: string | null;
   onSelectSop: (id: number) => void;
+  canReview?: boolean;
+  onReviewComplete?: () => void;
 }
 
 export default function SopListSidebar({
@@ -20,6 +23,8 @@ export default function SopListSidebar({
   data,
   err,
   onSelectSop,
+  canReview = false,
+  onReviewComplete,
 }: Props) {
   return (
     <div className="flex flex-col h-full">
@@ -54,44 +59,55 @@ export default function SopListSidebar({
               ).length;
 
               return (
-                <button
+                <div
                   key={sop.sop_id}
-                  type="button"
-                  onClick={() => onSelectSop(sop.sop_id)}
-                  className="w-full text-left px-4 py-3.5 hover:bg-indigo-50/60 transition-colors flex items-start gap-3 group"
+                  className="px-4 py-3.5 hover:bg-indigo-50/60 transition-colors"
                 >
-                  <div className="h-8 w-8 rounded-md bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-indigo-200 transition-colors">
-                    <BookOpen className="h-4 w-4 text-indigo-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-semibold text-foreground truncate">{sop.title}</p>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-indigo-600 transition-colors" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectSop(sop.sop_id)}
+                    className="w-full text-left flex items-start gap-3 group"
+                  >
+                    <div className="h-8 w-8 rounded-md bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-indigo-200 transition-colors">
+                      <BookOpen className="h-4 w-4 text-indigo-600" />
                     </div>
-                    {sop.narrative && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
-                        {sop.narrative}
-                      </p>
-                    )}
-                    <SopVersionBadges version={sop.sop_version} className="mt-1.5" />
-                    <div className="flex items-center gap-2 mt-1.5">
-                      {sop.ruleCount !== null ? (
-                        <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                          {sop.ruleCount} rules
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border animate-pulse">
-                          rules
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-semibold text-foreground truncate">{sop.title}</p>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-indigo-600 transition-colors" />
+                      </div>
+                      {sop.narrative && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-snug">
+                          {sop.narrative}
+                        </p>
                       )}
-                      {sopPickedCount > 0 && (
-                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          {sopPickedCount} selected
-                        </span>
-                      )}
+                      <SopVersionBadges version={sop.sop_version} className="mt-1.5" />
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {sop.ruleCount !== null ? (
+                          <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                            {sop.ruleCount} rules
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border animate-pulse">
+                            rules
+                          </span>
+                        )}
+                        {sopPickedCount > 0 && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            {sopPickedCount} selected
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  <SopReviewActions
+                    sopId={sop.sop_id}
+                    version={sop.sop_version}
+                    canReview={canReview}
+                    onComplete={onReviewComplete}
+                    className="mt-2 ml-11"
+                  />
+                </div>
               );
             })}
           </div>

@@ -19,6 +19,10 @@ const ACTIVATION_STYLES: Record<string, { label: string; className: string }> = 
     label: 'Rejected',
     className: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
   },
+  superseded: {
+    label: 'Superseded',
+    className: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+  },
 };
 
 function formatActivationStatus(status: string | null | undefined): string {

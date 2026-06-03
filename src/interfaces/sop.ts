@@ -271,3 +271,14 @@ export interface DomTreeResponse {
   root_count: number;
   roots: DomTreeNode[];
 }
+
+// ── SOP version review (activate / reject) ──────────────────────────────────
+
+export interface SopReviewActionResponse {
+  sop_id: number;
+  activation_status: string | null;
+  is_current: boolean;
+  version_number: number;
+  current_sop_id: number | null;
+  is_approved: boolean;
+}

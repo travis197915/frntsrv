@@ -115,6 +115,16 @@ export default function FullscreenAttachmentPicker({
     }
   };
 
+  const refetchAttachable = async () => {
+    try {
+      const d = await workflowsApi.getAttachable(workflowId);
+      setData(d);
+      setSopRulesCache(new Map());
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? e));
+    }
+  };
+
   // ── HTML candidate extraction (for rule → element mapping) ─────────────────
   const _extractionData = useMemo(
     () =>
@@ -606,6 +616,8 @@ export default function FullscreenAttachmentPicker({
                     data={data}
                     err={err}
                     onSelectSop={setActiveSopId}
+                    canReview={!readOnly}
+                    onReviewComplete={() => void refetchAttachable()}
                   />
                 ) : (
                   <SopRulesSidebar

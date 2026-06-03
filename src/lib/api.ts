@@ -42,6 +42,7 @@ import type {
   SopExclusionToggleResponse,
   SopExclusionUpsertInput,
   SopHtmlBlocksResponse,
+  SopReviewActionResponse,
   SopSourceHtmlResponse,
 } from "../interfaces/sop";
 
@@ -100,6 +101,21 @@ export const sopExclusionsApi = {
   ): Promise<DomTreeResponse> {
     return ingestClient.get<DomTreeResponse>(
       `/sops/${sopId}/dom-tree/?source=${source}`,
+    );
+  },
+};
+
+export const sopReviewApi = {
+  activate(sopId: number): Promise<SopReviewActionResponse> {
+    return ingestClient.post<SopReviewActionResponse>(
+      `/sops/${sopId}/activate/`,
+      {},
+    );
+  },
+  reject(sopId: number): Promise<SopReviewActionResponse> {
+    return ingestClient.post<SopReviewActionResponse>(
+      `/sops/${sopId}/reject/`,
+      {},
     );
   },
 };

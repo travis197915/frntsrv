@@ -29,6 +29,7 @@ import {
 import SopGraphDialog from './SopGraphDialog';
 import AddSopsDialog from './AddSopsDialog';
 import SopReconcileDialog from './SopReconcileDialog';
+import SopReviewActions from './SopReviewActions';
 import SopVersionBadges from './SopVersionBadges';
 import { cn } from '@/utils/utils';
 
@@ -43,6 +44,7 @@ interface WorkflowContextPanelProps {
   /** True when the workflow canvas was auto-built from its SOPs. */
   autoBuilt?: boolean;
   onAttached: () => void;
+  canWrite?: boolean;
   /** Fired right after a SOP ingestion is dispatched so the parent can switch
    *  to the live build-progress (SSE) screen. */
   onIngestStarted?: () => void;
@@ -122,23 +124,27 @@ function StatusDot({ status }: { status: string }) {
 
 function SopListItem({
   sop,
+  canWrite,
   onOpenGraph,
+  onReviewComplete,
 }: {
   sop: WorkflowSop;
+  canWrite: boolean;
   onOpenGraph: (sop: WorkflowSop) => void;
+  onReviewComplete: () => void;
 }) {
   const canOpenGraph = sop.status === 'COMPLETED' || sop.status === 'PARTIAL';
 
   return (
-    <li>
+    <li className="text-xs rounded-md border border-border bg-background px-2.5 py-2">
       <button
         type="button"
         onClick={() => canOpenGraph && onOpenGraph(sop)}
         disabled={!canOpenGraph}
         className={cn(
-          'group w-full text-left text-xs rounded-md border border-border bg-background px-2.5 py-2 transition-colors',
+          'group w-full text-left transition-colors',
           canOpenGraph
-            ? 'hover:border-primary hover:bg-muted/50 cursor-pointer'
+            ? 'hover:text-primary cursor-pointer'
             : 'opacity-70 cursor-not-allowed',
         )}
       >
@@ -151,7 +157,6 @@ function SopListItem({
             <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-primary transition-colors" />
           )}
         </div>
-        <SopVersionBadges version={sop.sop_version} className="mt-1.5 ml-4" />
         <p className="text-[10px] text-muted-foreground mt-1 ml-4">
           {canOpenGraph ? (
             <span className="inline-flex items-center gap-1 group-hover:text-primary transition-colors">
@@ -166,6 +171,14 @@ function SopListItem({
           )}
         </p>
       </button>
+      <SopVersionBadges version={sop.sop_version} className="mt-1.5 ml-4" />
+      <SopReviewActions
+        sopId={sop.audit_sop_id}
+        version={sop.sop_version}
+        canReview={canWrite}
+        onComplete={onReviewComplete}
+        className="mt-1.5 ml-4"
+      />
     </li>
   );
 }
@@ -178,6 +191,7 @@ export default function WorkflowContextPanel({
   agents,
   autoBuilt = false,
   onAttached,
+  canWrite = false,
   onIngestStarted,
   onCanvasReload,
   focusWorkbenchId,
@@ -299,7 +313,9 @@ export default function WorkflowContextPanel({
                   <SopListItem
                     key={sop.job_id}
                     sop={sop}
+                    canWrite={canWrite}
                     onOpenGraph={setGraphSop}
+                    onReviewComplete={onAttached}
                   />
                 ))}
               </ul>

@@ -806,6 +806,7 @@ function WorkflowBuilderInner() {
                       ?.auto_build_canvas,
                   )}
                   onAttached={refetchWorkflow}
+                  canWrite={canWrite}
                   onIngestStarted={refreshBuildStatus}
                   onCanvasReload={handleBuildComplete}
                 />
