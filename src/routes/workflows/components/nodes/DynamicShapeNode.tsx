@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { useShapeCatalog } from './ShapeCatalogProvider';
 import type { NodeMeta } from '@/lib/api';
 import { detectShapeType, type ShapeVariant } from '@/utils/shapeUtils';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 export interface DynamicNodeData extends NodeMeta, Record<string, unknown> {
   label?: string;
@@ -118,8 +119,21 @@ const SHAPE_SVGS: Record<ShapeVariant, React.FC<ShapeSvgProps>> = {
   predefined: PredefinedSvg,
 };
 
+/** Returns true when the element's text is clamped (overflows its container). */
+function useIsClamped(ref: React.RefObject<HTMLElement | null>) {
+  const [clamped, setClamped] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setClamped(el.scrollHeight > el.clientHeight + 1);
+  });
+  return clamped;
+}
+
 export function DynamicShapeNode({ data, selected, width, height }: NodeProps<DynamicShapeNodeType>) {
   const catalog = useShapeCatalog();
+  const labelRef = useRef<HTMLParagraphElement>(null);
+  const isClamped = useIsClamped(labelRef);
   const def = useMemo(
     () => {
       const slug = data.definitionSlug;
@@ -171,9 +185,29 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
         <ShapeSvg w={w} h={h} fill={bg} stroke={border} sw={sw} />
 
         <div style={{ position: 'relative', zIndex: 1, padding: '0 16px', textAlign: 'center', maxWidth: '85%' }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 500, color, lineHeight: 1.4 }}>
-            {label}
-          </p>
+          <Tooltip open={isClamped ? undefined : false}>
+            <TooltipTrigger asChild>
+              <p
+                ref={labelRef}
+                style={{
+                  margin: 0,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color,
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {label}
+              </p>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-center">
+              {label}
+            </TooltipContent>
+          </Tooltip>
           {data.description ? (
             <p style={{ margin: '2px 0 0', fontSize: 10, color, opacity: 0.6, lineHeight: 1.3 }}>
               {String(data.description).slice(0, 60)}

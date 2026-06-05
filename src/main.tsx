@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "./utils/theme";
 import "./index.css";
 import { AuthProvider } from "./contexts/AuthContext";
+import { TooltipProvider } from "./components/ui/tooltip";
 import AppRoutes from "./routes";
 
 const queryClient = new QueryClient({
@@ -23,7 +24,9 @@ createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <AppRoutes />
+            <TooltipProvider delayDuration={400}>
+              <AppRoutes />
+            </TooltipProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

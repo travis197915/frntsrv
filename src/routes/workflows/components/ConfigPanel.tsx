@@ -45,7 +45,7 @@ function DynamicField({
           id={id}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
-          className="min-h-[80px] resize-none"
+          className="min-h-[100px] resize-none text-xs"
           disabled={readOnly}
         />
       ) : field.type === "select" && field.options ? (
@@ -86,10 +86,11 @@ function DynamicField({
           <span className="text-muted-foreground">{field.label}</span>
         </label>
       ) : (
-        <Input
+        <Textarea
           id={id}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
+          className="min-h-[80px] resize-none text-xs"
           disabled={readOnly}
         />
       )}
