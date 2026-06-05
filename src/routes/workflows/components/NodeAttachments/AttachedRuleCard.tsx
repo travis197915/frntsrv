@@ -1,13 +1,17 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
+import AdditionalContextDialog from "./AdditionalContextDialog";
 
 interface AttachedRuleCardProps {
   rule: AttachedSopRule;
   onRemove?: (key: string) => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  /** Persist a new value of `rule.additional_context` for this rule. */
+  onContextChange?: (key: string, context: string) => void;
+  readOnly?: boolean;
 }
 
 export default function AttachedRuleCard({
@@ -15,8 +19,12 @@ export default function AttachedRuleCard({
   onRemove,
   onMoveUp,
   onMoveDown,
+  onContextChange,
+  readOnly = false,
 }: AttachedRuleCardProps) {
   const [showCtx, setShowCtx] = useState(false);
+  const [ctxDialog, setCtxDialog] = useState(false);
+  const hasContext = !!(rule.additional_context ?? "").trim();
   return (
     <li className="border border-border rounded p-2 bg-muted/30">
       <div className="flex items-start gap-2">
@@ -93,16 +101,57 @@ export default function AttachedRuleCard({
             </>
           )}
         </div>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={() => onRemove(rule.key)}
-            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(rule.key)}
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              aria-label="Exclude rule"
+              title="Exclude rule"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {(onContextChange || hasContext) && (
+            <button
+              type="button"
+              onClick={() => setCtxDialog(true)}
+              className={`relative h-5 w-5 flex items-center justify-center rounded ${
+                hasContext
+                  ? "text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+              aria-label={
+                hasContext ? "Edit additional context" : "Add additional context"
+              }
+              title={
+                hasContext
+                  ? "Edit additional context"
+                  : "Add additional context for the agent"
+              }
+            >
+              <NotebookPen className="h-3 w-3" />
+              {hasContext && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          )}
+        </div>
       </div>
+
+      <AdditionalContextDialog
+        open={ctxDialog}
+        ruleLabel={rule.section_label || rule.key}
+        ruleCondition={rule.condition}
+        initialContext={rule.additional_context ?? ""}
+        readOnly={readOnly || !onContextChange}
+        onClose={() => setCtxDialog(false)}
+        onSave={(text) => onContextChange?.(rule.key, text)}
+      />
     </li>
   );
 }

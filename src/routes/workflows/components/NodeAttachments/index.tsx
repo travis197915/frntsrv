@@ -53,6 +53,16 @@ export default function NodeAttachments({
     );
   };
 
+  const updateRuleContext = (key: string, context: string) => {
+    if (readOnly) return;
+    onChange(
+      rules.map((r) =>
+        r.key === key ? { ...r, additional_context: context } : r,
+      ),
+      tools,
+    );
+  };
+
   const selectedKeys = useMemo(
     () =>
       new Set<string>([
@@ -94,6 +104,7 @@ export default function NodeAttachments({
               <AttachedRuleCard
                 key={r.key}
                 rule={r}
+                readOnly={readOnly}
                 onRemove={readOnly ? undefined : removeRule}
                 onMoveUp={
                   readOnly || i === 0 ? undefined : () => moveRule(r.key, "up")
@@ -103,6 +114,7 @@ export default function NodeAttachments({
                     ? undefined
                     : () => moveRule(r.key, "down")
                 }
+                onContextChange={readOnly ? undefined : updateRuleContext}
               />
             ))}
           </ul>

@@ -19,7 +19,14 @@ import type {
 import type { ShapeDefinition } from '@/lib/api';
 
 let idCounter = 0;
-const nextId = () => `node_${Date.now()}_${++idCounter}`;
+// Node IDs must be UUIDs so Django persists them verbatim (see
+// `_sync_shapes`). With non-UUIDs, Django mints a new server-side UUID
+// and the next reload renames the node — orphaning any localStorage
+// edges that referenced the old id.
+const nextId = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `node_${Date.now()}_${++idCounter}`;
 
 // Edges are a frontend-only concern — we keep them in localStorage keyed by
 // workflow id so they survive reloads, but Django never sees them.  Nodes
@@ -166,23 +173,29 @@ export function useWorkflowCanvas(
     }
   }, [setNodes, setEdges]);
 
-  // Load: workflow from GraphQL API; empty canvas + placeholder meta if loading
+  // Sync workflow meta when the route id changes. Nodes/edges come from the
+  // page's loadFromJSON effect; only clear them on an actual id transition
+  // (one workflow → another) — never on initial mount, or the loaded data
+  // gets wiped before the user sees it.
+  const prevWorkflowIdRef = useRef<string | undefined>(workflowId);
   useEffect(() => {
     if (!workflowId) {
       setWorkflowMeta((m) => ({ ...DEFAULT_META, id: m.id || '' }));
       return;
     }
-
-    // Live mode: no workflow API wired yet — start blank until GET_WORKFLOW is added.
-    setNodes([]);
-    setEdges([]);
+    const prev = prevWorkflowIdRef.current;
+    if (prev && prev !== workflowId) {
+      setNodes([]);
+      setEdges([]);
+    }
+    prevWorkflowIdRef.current = workflowId;
     setWorkflowMeta((m) => ({
       ...DEFAULT_META,
       id: workflowId,
       name: m.name && m.id === workflowId ? m.name : 'Untitled Workflow',
     }));
     setIsDirty(false);
-  }, [workflowId, loadFromJSON, setNodes, setEdges]);
+  }, [workflowId, setNodes, setEdges]);
 
   useLayoutEffect(() => {
     const c = edgeMarkerColor();

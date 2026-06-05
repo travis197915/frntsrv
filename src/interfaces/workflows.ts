@@ -74,6 +74,13 @@ export interface AttachedSopRule {
   action: string;
   decision_type: string;
   codes: string[];
+  /**
+   * Free-text guidance the auditor attaches to this rule on this canvas
+   * node. Fed to the evaluator at runtime alongside the rule's condition;
+   * empty when the rule should be evaluated "as written" with no extra
+   * scoping notes / lookup tables.
+   */
+  additional_context?: string;
 }
 
 export interface AttachedTool {
