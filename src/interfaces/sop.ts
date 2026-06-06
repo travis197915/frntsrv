@@ -64,11 +64,21 @@ export interface SopPrecondition {
 
 export interface SopDecision {
   row_index: number;
+  // ── Nesting (preserves the SOP YAML subrule hierarchy) ──
+  depth?: number;
+  subrule_id?: string;
+  table_name?: string;
+  aggregation?: string;
+  children?: SopDecision[];
+  // ── Rule body ──
   condition_if: string;
   condition_and: string;
   action_text: string;
   action_summary: string;
+  output_text?: string;
   decision_type: string;
+  tooling_allowed?: boolean;
+  is_out_of_scope?: boolean;
   goto_step: number | null;
   is_final: boolean;
   eob_codes: string[];
@@ -80,12 +90,14 @@ export interface SopDecision {
 
 export interface SopStep {
   step_number: number;
+  yaml_rule_id?: string;
   question: string;
   intro_text: string;
   is_terminal: boolean;
   terminal_action: string;
   is_sub_procedure: boolean;
   sub_procedure: string;
+  is_out_of_scope?: boolean;
   decisions: SopDecision[];
 }
 

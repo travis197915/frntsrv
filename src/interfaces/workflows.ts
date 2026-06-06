@@ -70,6 +70,12 @@ export interface AttachedSopRule {
   source: 'precondition' | 'decision';
   section_label: string;
   section_narrative?: string;
+  /** Hierarchical rule id, e.g. "RULE-000-000-001". Present for decisions. */
+  subrule_id?: string;
+  /** Nesting level: 0 = top-level rule, 1 = sub-rule, 2 = sub-sub-rule. */
+  depth?: number;
+  /** True when the rule (or its enclosing section) is flagged out of scope. */
+  is_out_of_scope?: boolean;
   condition: string;
   action: string;
   decision_type: string;

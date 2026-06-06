@@ -12,6 +12,12 @@ interface AttachedRuleCardProps {
   /** Persist a new value of `rule.additional_context` for this rule. */
   onContextChange?: (key: string, context: string) => void;
   readOnly?: boolean;
+  /** Nesting level used for indentation (0 = top-level rule). */
+  depth?: number;
+  /** Every rule on this node — shown in the dialog's "Node rules" tab. */
+  allRules?: AttachedSopRule[];
+  /** Indentation level per rule key, for the dialog's tree. */
+  depthByKey?: Map<string, number>;
 }
 
 export default function AttachedRuleCard({
@@ -21,12 +27,21 @@ export default function AttachedRuleCard({
   onMoveDown,
   onContextChange,
   readOnly = false,
+  depth = 0,
+  allRules,
+  depthByKey,
 }: AttachedRuleCardProps) {
   const [showCtx, setShowCtx] = useState(false);
   const [ctxDialog, setCtxDialog] = useState(false);
   const hasContext = !!(rule.additional_context ?? "").trim();
+  const outOfScope = !!rule.is_out_of_scope;
   return (
-    <li className="border border-border rounded p-2 bg-muted/30">
+    <li
+      style={{ marginLeft: depth > 0 ? depth * 16 : undefined }}
+      className={`border rounded p-2 ${
+        depth > 0 ? "border-l-2 border-l-indigo-300 border-border/60" : "border-border"
+      } ${outOfScope ? "bg-rose-50/60 border-rose-200" : "bg-muted/30"}`}
+    >
       <div className="flex items-start gap-2">
         {/* Sequence badge + reorder controls */}
         <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
@@ -60,6 +75,16 @@ export default function AttachedRuleCard({
             >
               {rule.decision_type || "—"}
             </span>
+            {rule.subrule_id && (
+              <span className="font-mono text-[10px] px-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {rule.subrule_id}
+              </span>
+            )}
+            {outOfScope && (
+              <span className="text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                Out of scope
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground truncate">
               {rule.section_label}
             </span>
@@ -145,10 +170,13 @@ export default function AttachedRuleCard({
 
       <AdditionalContextDialog
         open={ctxDialog}
-        ruleLabel={rule.section_label || rule.key}
+        ruleLabel={rule.subrule_id || rule.section_label || rule.key}
         ruleCondition={rule.condition}
         initialContext={rule.additional_context ?? ""}
         readOnly={readOnly || !onContextChange}
+        rules={allRules ?? [rule]}
+        depthByKey={depthByKey}
+        activeKey={rule.key}
         onClose={() => setCtxDialog(false)}
         onSave={(text) => onContextChange?.(rule.key, text)}
       />

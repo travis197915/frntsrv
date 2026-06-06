@@ -5,7 +5,7 @@ import { toolPickKey } from "@/utils/nodeAttachments";
 import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 import AttachedRuleCard from "./AttachedRuleCard";
 import GroupedToolsList from "./GroupedToolsList";
-import FullscreenAttachmentPicker from "./HTMLFullscreenPicker";
+import FullscreenAttachmentPicker from "./HtmlFullscreenPicker";
 
 interface NodeAttachmentsProps {
   workflowId: string;
@@ -72,6 +72,37 @@ export default function NodeAttachments({
     [rules, tools],
   );
 
+  // Indentation level per rule. Prefer the authoritative `depth` from the
+  // backend; otherwise derive nesting from the hierarchical rule id
+  // (e.g. RULE-000-000 -> RULE-000-000-001). Depths are normalised so the
+  // shallowest decision sits flush-left.
+  const depthByKey = useMemo(() => {
+    const raw = new Map<string, number>();
+    for (const r of rules) {
+      if (r.source !== "decision") {
+        raw.set(r.key, 0);
+        continue;
+      }
+      if (typeof r.depth === "number") {
+        raw.set(r.key, r.depth);
+      } else {
+        const segs = (r.subrule_id || "").split("-").filter(Boolean).length;
+        // "RULE-000-000" => 3 segments, treat as level 0.
+        raw.set(r.key, segs > 3 ? segs - 3 : 0);
+      }
+    }
+    const decisionDepths = rules
+      .filter((r) => r.source === "decision")
+      .map((r) => raw.get(r.key) ?? 0);
+    const min = decisionDepths.length ? Math.min(...decisionDepths) : 0;
+    const out = new Map<string, number>();
+    for (const r of rules) {
+      const base = raw.get(r.key) ?? 0;
+      out.set(r.key, r.source === "decision" ? Math.max(0, base - min) : 0);
+    }
+    return out;
+  }, [rules]);
+
   return (
     <>
       <div className="space-y-2">
@@ -104,6 +135,9 @@ export default function NodeAttachments({
               <AttachedRuleCard
                 key={r.key}
                 rule={r}
+                depth={depthByKey.get(r.key) ?? 0}
+                allRules={rules}
+                depthByKey={depthByKey}
                 readOnly={readOnly}
                 onRemove={readOnly ? undefined : removeRule}
                 onMoveUp={

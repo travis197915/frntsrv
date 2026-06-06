@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, ShieldCheck, GitBranch, Tag, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight, ShieldCheck, GitBranch, Tag, AlertTriangle, Link as LinkIcon, Ban, CornerDownRight } from 'lucide-react';
 import { ingestApi, type SopSectionsResponse, type SopDecision, type SopRule } from '@/lib/api';
 import { SopSectionsPanelLoading } from './SopGraphLoading';
+
+// ── Out-of-scope badge (a rule/section the SOP says NOT to audit) ─────────────
+function OutOfScopeBadge() {
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 font-semibold uppercase tracking-wide">
+      <Ban className="h-2.5 w-2.5" /> Out of scope
+    </span>
+  );
+}
 
 interface SopSectionsPanelProps {
   jobId: string;
@@ -98,47 +107,83 @@ function RuleRow({ r }: { r: SopRule }) {
   );
 }
 
-// ── Decision row (within a step) ──────────────────────────────────────────────
-function DecisionRow({ d }: { d: SopDecision }) {
+// ── Decision row (within a step) — recurses over nested subrules ──────────────
+function DecisionRow({ d, depth = 0 }: { d: SopDecision; depth?: number }) {
   const codes = [
     ...d.eob_codes.map((c) => ({ c, t: 'EOB' })),
     ...d.ex_codes.map((c) => ({ c, t: 'EX' })),
     ...d.denial_codes.map((c) => ({ c, t: 'DENIAL' })),
     ...d.system_actions.map((c) => ({ c, t: 'SYSTEM_ACT' })),
   ];
+  const oos = d.is_out_of_scope;
+  const children = d.children ?? [];
+  // Indent nested rows; tint out-of-scope rows so auditors skip them at a glance.
+  const rowTone = oos ? 'bg-rose-50/60' : depth > 0 ? 'bg-muted/20' : '';
+  const indentPad = 10 + depth * 16;
   return (
-    <tr className="border-t border-border align-top">
-      <td className="py-1.5 px-2.5 text-[11px] w-[40%]">
-        {d.condition_if || <span className="text-muted-foreground italic">—</span>}
-        {d.condition_and && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">AND {d.condition_and}</p>
-        )}
-      </td>
-      <td className="py-1.5 px-2.5 text-[11px]">
-        {d.action_text || <span className="text-muted-foreground italic">—</span>}
-        {d.action_summary && d.action_summary !== d.action_text && (
-          <p className="text-[10px] text-muted-foreground mt-0.5 italic">{d.action_summary}</p>
-        )}
-      </td>
-      <td className="py-1.5 px-2.5 text-[10px] whitespace-nowrap">
-        <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[d.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-          {d.decision_type}
-        </span>
-        {d.is_final && <span className="ml-1 text-[10px] text-red-600">final</span>}
-        {d.goto_step !== null && d.goto_step !== undefined && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">→ Step {d.goto_step}</p>
-        )}
-      </td>
-      <td className="py-1.5 px-2.5 text-[10px]">
-        {codes.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {codes.map((x, i) => <CodeChip key={`${x.t}-${x.c}-${i}`} code={x.c} type={x.t} />)}
+    <Fragment>
+      <tr className={`border-t border-border align-top ${rowTone}`}>
+        <td className="py-1.5 px-2.5 text-[11px] w-[40%]" style={{ paddingLeft: indentPad }}>
+          <div className="flex items-start gap-1">
+            {depth > 0 && (
+              <CornerDownRight className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground/60" />
+            )}
+            <div className="min-w-0">
+              {(d.subrule_id || oos) && (
+                <div className="flex flex-wrap items-center gap-1 mb-0.5">
+                  {d.subrule_id && (
+                    <span className="font-mono text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                      {d.subrule_id}
+                    </span>
+                  )}
+                  {oos && <OutOfScopeBadge />}
+                </div>
+              )}
+              <span className={oos ? 'text-rose-900' : ''}>
+                {d.condition_if || <span className="text-muted-foreground italic">—</span>}
+              </span>
+              {d.condition_and && (
+                <p className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-line">AND {d.condition_and}</p>
+              )}
+            </div>
           </div>
-        ) : (
-          <span className="text-muted-foreground italic">—</span>
-        )}
-      </td>
-    </tr>
+        </td>
+        <td className="py-1.5 px-2.5 text-[11px]">
+          <span className="whitespace-pre-line">
+            {d.action_text || <span className="text-muted-foreground italic">—</span>}
+          </span>
+          {d.output_text && (
+            <p className="text-[10px] text-muted-foreground mt-1 border-l-2 border-border pl-1.5 whitespace-pre-line">
+              {d.output_text}
+            </p>
+          )}
+        </td>
+        <td className="py-1.5 px-2.5 text-[10px] whitespace-nowrap">
+          <span className={`inline-block px-1.5 py-0.5 rounded border text-[10px] ${DECISION_TONE[d.decision_type] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+            {d.decision_type}
+          </span>
+          {d.aggregation && d.aggregation !== 'LEAF' && (
+            <p className="text-[9px] text-muted-foreground mt-0.5">{d.aggregation}</p>
+          )}
+          {d.is_final && <span className="ml-1 text-[10px] text-red-600">final</span>}
+          {d.goto_step !== null && d.goto_step !== undefined && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">→ Step {d.goto_step}</p>
+          )}
+        </td>
+        <td className="py-1.5 px-2.5 text-[10px]">
+          {codes.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {codes.map((x, i) => <CodeChip key={`${x.t}-${x.c}-${i}`} code={x.c} type={x.t} />)}
+            </div>
+          ) : (
+            <span className="text-muted-foreground italic">—</span>
+          )}
+        </td>
+      </tr>
+      {children.map((c, i) => (
+        <DecisionRow key={c.subrule_id || `${depth}-${c.row_index}-${i}`} d={c} depth={depth + 1} />
+      ))}
+    </Fragment>
   );
 }
 
@@ -238,12 +283,21 @@ export default function SopSectionsPanel({ jobId }: SopSectionsPanelProps) {
                color="text-blue-600" defaultOpen>
         <div className="space-y-3">
           {data.steps.map((step) => (
-            <div key={step.step_number} className="rounded border border-border bg-background">
-              <div className="px-2.5 py-1.5 border-b border-border bg-muted/40 flex items-center gap-2">
+            <div
+              key={step.step_number}
+              className={`rounded border bg-background ${step.is_out_of_scope ? 'border-rose-300' : 'border-border'}`}
+            >
+              <div className={`px-2.5 py-1.5 border-b flex items-center gap-2 ${step.is_out_of_scope ? 'border-rose-200 bg-rose-50/70' : 'border-border bg-muted/40'}`}>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono">
                   Step {step.step_number}
                 </span>
+                {step.yaml_rule_id && (
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                    {step.yaml_rule_id}
+                  </span>
+                )}
                 <p className="text-xs font-medium flex-1 truncate">{step.question || '(no question)'}</p>
+                {step.is_out_of_scope && <OutOfScopeBadge />}
                 {step.is_terminal && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-700">
                     terminal
@@ -251,7 +305,7 @@ export default function SopSectionsPanel({ jobId }: SopSectionsPanelProps) {
                 )}
               </div>
               {step.intro_text && (
-                <p className="text-[11px] text-muted-foreground px-2.5 py-1.5">{step.intro_text}</p>
+                <p className="text-[11px] text-muted-foreground px-2.5 py-1.5 whitespace-pre-line">{step.intro_text}</p>
               )}
               {step.decisions.length > 0 && (
                 <table className="w-full table-fixed">
@@ -264,7 +318,9 @@ export default function SopSectionsPanel({ jobId }: SopSectionsPanelProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {step.decisions.map((d) => <DecisionRow key={d.row_index} d={d} />)}
+                    {step.decisions.map((d, i) => (
+                      <DecisionRow key={d.subrule_id || `${step.step_number}-${d.row_index}-${i}`} d={d} />
+                    ))}
                   </tbody>
                 </table>
               )}
