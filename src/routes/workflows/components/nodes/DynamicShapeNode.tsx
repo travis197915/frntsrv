@@ -168,6 +168,20 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
   const ShapeSvg = SHAPE_SVGS[shape];
   const handleStyle = { ...HANDLE_STYLE, borderColor: border, zIndex: 1 };
 
+  // Out-of-scope rollup surfaced by the builder graph hydration
+  // (builder/bindings_sync.py). `is_out_of_scope` => every bound rule is a
+  // clean-exclusion rule; a partial count => some rows are out of scope.
+  const props = (data.properties ?? {}) as Record<string, unknown>;
+  const fullyOos = props.is_out_of_scope === true;
+  const oosCount = Number(props.oos_rule_count ?? 0);
+  const ruleCount = Number(props.rule_count ?? 0);
+  const partialOos = !fullyOos && oosCount > 0;
+  const oosLabel = fullyOos
+    ? 'Out of Scope'
+    : partialOos
+      ? `Out of Scope ${oosCount}/${ruleCount}`
+      : '';
+
   return (
     <>
       <div
@@ -182,7 +196,43 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
           filter: selected ? `drop-shadow(0 0 3px ${accent}66)` : 'drop-shadow(0 1px 3px rgba(0,0,0,0.1))',
         }}
       >
-        <ShapeSvg w={w} h={h} fill={bg} stroke={border} sw={sw} />
+        <ShapeSvg w={w} h={h} fill={fullyOos ? '#fef2f2' : bg} stroke={fullyOos ? '#f87171' : border} sw={sw} />
+
+        {oosLabel ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -9,
+                  right: -6,
+                  zIndex: 2,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  padding: '1px 7px',
+                  borderRadius: 9999,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: 0.2,
+                  lineHeight: 1.6,
+                  whiteSpace: 'nowrap',
+                  color: '#fff',
+                  background: fullyOos ? '#e11d48' : '#d97706',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {oosLabel}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px] text-center">
+              {fullyOos
+                ? 'This step is a clean exclusion — auditing stops on this path; no defect is raised.'
+                : `${oosCount} of ${ruleCount} rules on this step are out of scope (clean exclusions).`}
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
 
         <div style={{ position: 'relative', zIndex: 1, padding: '0 16px', textAlign: 'center', maxWidth: '85%' }}>
           <Tooltip open={isClamped ? undefined : false}>
