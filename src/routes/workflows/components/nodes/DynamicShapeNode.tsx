@@ -172,15 +172,20 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
   // (builder/bindings_sync.py). `is_out_of_scope` => every bound rule is a
   // clean-exclusion rule; a partial count => some rows are out of scope.
   const props = (data.properties ?? {}) as Record<string, unknown>;
+  // Auditor's manual per-node exclusion (set in ConfigPanel). Takes visual
+  // precedence and greys the node out — the execution engine skips it entirely.
+  const manualOos = props.manual_out_of_scope === true;
   const fullyOos = props.is_out_of_scope === true;
   const oosCount = Number(props.oos_rule_count ?? 0);
   const ruleCount = Number(props.rule_count ?? 0);
-  const partialOos = !fullyOos && oosCount > 0;
-  const oosLabel = fullyOos
-    ? 'Out of Scope'
-    : partialOos
-      ? `Out of Scope ${oosCount}/${ruleCount}`
-      : '';
+  const partialOos = !manualOos && !fullyOos && oosCount > 0;
+  const oosLabel = manualOos
+    ? 'Excluded'
+    : fullyOos
+      ? 'Out of Scope'
+      : partialOos
+        ? `Out of Scope ${oosCount}/${ruleCount}`
+        : '';
 
   return (
     <>
@@ -193,10 +198,17 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'default',
+          opacity: manualOos ? 0.55 : 1,
           filter: selected ? `drop-shadow(0 0 3px ${accent}66)` : 'drop-shadow(0 1px 3px rgba(0,0,0,0.1))',
         }}
       >
-        <ShapeSvg w={w} h={h} fill={fullyOos ? '#fef2f2' : bg} stroke={fullyOos ? '#f87171' : border} sw={sw} />
+        <ShapeSvg
+          w={w}
+          h={h}
+          fill={manualOos ? '#f1f5f9' : fullyOos ? '#fef2f2' : bg}
+          stroke={manualOos ? '#94a3b8' : fullyOos ? '#f87171' : border}
+          sw={sw}
+        />
 
         {oosLabel ? (
           <Tooltip>
@@ -218,7 +230,7 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
                   lineHeight: 1.6,
                   whiteSpace: 'nowrap',
                   color: '#fff',
-                  background: fullyOos ? '#e11d48' : '#d97706',
+                  background: manualOos ? '#475569' : fullyOos ? '#e11d48' : '#d97706',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
                   textTransform: 'uppercase',
                 }}
@@ -227,9 +239,11 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[240px] text-center">
-              {fullyOos
-                ? 'This step is a clean exclusion — auditing stops on this path; no defect is raised.'
-                : `${oosCount} of ${ruleCount} rules on this step are out of scope (clean exclusions).`}
+              {manualOos
+                ? 'Manually excluded from the execution engine — every rule on this node is skipped and the rest of the workflow continues.'
+                : fullyOos
+                  ? 'This step is a clean exclusion — auditing stops on this path; no defect is raised.'
+                  : `${oosCount} of ${ruleCount} rules on this step are out of scope (clean exclusions).`}
             </TooltipContent>
           </Tooltip>
         ) : null}

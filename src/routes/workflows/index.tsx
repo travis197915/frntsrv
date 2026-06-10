@@ -26,6 +26,7 @@ export default function WorkflowsPage() {
   const [newWorkflowDescription, setNewWorkflowDescription] = useState('');
   const [newSopUrls, setNewSopUrls] = useState<string[]>([]);
   const [newRuntimeAgents, setNewRuntimeAgents] = useState<RuntimeAgentInput[]>([]);
+  const [newAutoBuild, setNewAutoBuild] = useState(false);
 
   const [rawWorkflows, setRawWorkflows] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,10 @@ export default function WorkflowsPage() {
     setIsCreateOpen(true);
   };
 
-  const handleCreateSubmit = async () => {
+  const handleCreateSubmit = async (override?: {
+    sopUrls: string[];
+    runtimeAgents: typeof newRuntimeAgents;
+  }) => {
     const workflowName = newWorkflowName.trim();
     if (!workflowName) return;
     setCreatingWorkflow(true);
@@ -80,14 +84,16 @@ export default function WorkflowsPage() {
         isActive:      true,
         nodes:         '[]',
         edges:         '[]',
-        sopUrls:       newSopUrls,
-        runtimeAgents: newRuntimeAgents,
+        sopUrls:          override?.sopUrls ?? newSopUrls,
+        runtimeAgents:    override?.runtimeAgents ?? newRuntimeAgents,
+        autoBuildFromSop: newAutoBuild,
       });
       setIsCreateOpen(false);
       setNewWorkflowName('');
       setNewWorkflowDescription('');
       setNewSopUrls([]);
       setNewRuntimeAgents([]);
+      setNewAutoBuild(false);
       navigate(`/workflows/${created.id}`);
     } finally {
       setCreatingWorkflow(false);
@@ -129,10 +135,12 @@ export default function WorkflowsPage() {
         creating={creatingWorkflow}
         sopUrls={newSopUrls}
         runtimeAgents={newRuntimeAgents}
+        autoBuild={newAutoBuild}
         onNameChange={setNewWorkflowName}
         onDescriptionChange={setNewWorkflowDescription}
         onSopUrlsChange={setNewSopUrls}
         onRuntimeAgentsChange={setNewRuntimeAgents}
+        onAutoBuildChange={setNewAutoBuild}
         onCreate={handleCreateSubmit}
       />
 
@@ -217,6 +225,7 @@ export default function WorkflowsPage() {
               status={wf.status}
               config={wf.config}
               updatedAt={wf.updatedAt}
+              needsTools={Boolean(wf.metadata?.needs_tools)}
               onRun={() => {}}
               onDuplicate={canWrite ? () => void handleDuplicateWorkflow(wf.id) : undefined}
               onDelete={canWrite ? () => void handleDeleteWorkflow(wf.id) : undefined}

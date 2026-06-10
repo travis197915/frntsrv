@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown, NotebookPen } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
 import AdditionalContextDialog from "./AdditionalContextDialog";
@@ -11,6 +11,8 @@ interface AttachedRuleCardProps {
   onMoveDown?: () => void;
   /** Persist a new value of `rule.additional_context` for this rule. */
   onContextChange?: (key: string, context: string) => void;
+  /** Open the inline form to add a sub-rule nested under this rule. */
+  onAddSubRule?: (parentKey: string) => void;
   readOnly?: boolean;
   /** Nesting level used for indentation (0 = top-level rule). */
   depth?: number;
@@ -26,6 +28,7 @@ export default function AttachedRuleCard({
   onMoveUp,
   onMoveDown,
   onContextChange,
+  onAddSubRule,
   readOnly = false,
   depth = 0,
   allRules,
@@ -136,6 +139,17 @@ export default function AttachedRuleCard({
               title="Exclude rule"
             >
               <X className="h-3 w-3" />
+            </button>
+          )}
+          {onAddSubRule && (
+            <button
+              type="button"
+              onClick={() => onAddSubRule(rule.key)}
+              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50"
+              aria-label="Add sub-rule"
+              title="Add a sub-rule under this rule"
+            >
+              <ListPlus className="h-3 w-3" />
             </button>
           )}
           {(onContextChange || hasContext) && (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Play, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowRight, Play, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle, Wrench } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ interface WorkflowCardProps {
   config?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  needsTools?: boolean;
   onRun?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
@@ -126,6 +127,7 @@ export default function WorkflowCard({
   status,
   config,
   updatedAt,
+  needsTools,
   onRun,
   onDelete,
   disableActions,
@@ -158,6 +160,16 @@ export default function WorkflowCard({
           <span className="ml-auto text-[11px] text-blue-500 dark:text-blue-400">
             <Clock className="inline h-3 w-3 mr-0.5 -mt-px" />
             {relativeTime(updatedAt)}
+          </span>
+        </div>
+      )}
+
+      {/* Auto-build: tools needed banner */}
+      {!isRunning && needsTools && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800">
+          <Wrench className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            Auto-built · add tool calls to nodes
           </span>
         </div>
       )}

@@ -284,8 +284,18 @@ export function useWorkflowCanvas(
       }
       setIsDirty(false);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to save workflow. Please try again.';
+      const status = (err as { status?: number } | null)?.status;
+      let msg: string;
+      if (status === 401) {
+        msg = 'Your session has expired. Please sign in again.';
+      } else if (status === 403) {
+        msg = "You don't have permission to save this workflow. Only admins can save workflows.";
+      } else if (err instanceof TypeError) {
+        // fetch() network-level rejection surfaces as a TypeError ("Failed to fetch").
+        msg = 'Could not reach the server. Check your connection (or sign in again) and retry.';
+      } else {
+        msg = err instanceof Error ? err.message : 'Failed to save workflow. Please try again.';
+      }
       setSaveError(msg);
     } finally {
       setIsSaving(false);

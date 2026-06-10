@@ -19,6 +19,7 @@ import {
   type WorkflowSop,
 } from '@/lib/workflowsApi';
 import SopGraphDialog from './SopGraphDialog';
+import AddSopsDialog from './AddSopsDialog';
 import { cn } from '@/utils/utils';
 
 type SopTab = 'queued' | 'completed' | 'failed';
@@ -29,6 +30,8 @@ interface WorkflowContextPanelProps {
   workflowDescription: string;
   sops: WorkflowSop[];
   agents: WorkflowAgent[];
+  /** True when the workflow canvas was auto-built from its SOPs. */
+  autoBuilt?: boolean;
   onAttached: () => void;
 }
 
@@ -153,11 +156,11 @@ export default function WorkflowContextPanel({
   workflowDescription,
   sops,
   agents,
+  autoBuilt = false,
   onAttached,
 }: WorkflowContextPanelProps) {
   const [adding, setAdding] = useState<'sop' | 'agent' | null>(null);
   const [graphSop, setGraphSop] = useState<WorkflowSop | null>(null);
-  const [newSopUrl, setNewSopUrl] = useState('');
   const [newAgent, setNewAgent] = useState<RuntimeAgentInput>({
     name: '', url: '', method: 'GET', auth_type: 'none', auth_token: '',
   });
@@ -175,19 +178,17 @@ export default function WorkflowContextPanel({
     return () => clearInterval(t);
   }, [hasPending, workflowId, onAttached]);
 
-  const attachSop = useCallback(async () => {
-    const url = newSopUrl.trim();
-    if (!url) return;
+  const attachSops = useCallback(async (urls: string[], autoBuild: boolean) => {
+    if (!urls.length) return;
     setBusy(true);
     try {
-      await workflowsApi.attach(workflowId, { sopUrls: [url] });
-      setNewSopUrl('');
+      await workflowsApi.attach(workflowId, { sopUrls: urls, autoBuildFromSop: autoBuild });
       setAdding(null);
       onAttached();
     } finally {
       setBusy(false);
     }
-  }, [newSopUrl, workflowId, onAttached]);
+  }, [workflowId, onAttached]);
 
   const attachAgent = useCallback(async () => {
     if (!newAgent.name.trim() || !newAgent.url.trim()) return;
@@ -236,22 +237,6 @@ export default function WorkflowContextPanel({
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-
-        {adding === 'sop' && (
-          <div className="mb-3 flex gap-2">
-            <Input
-              value={newSopUrl}
-              onChange={(e) => setNewSopUrl(e.target.value)}
-              placeholder="https://…/sop.html"
-              className="text-xs h-8"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') void attachSop(); }}
-            />
-            <Button size="sm" onClick={attachSop} disabled={busy}>
-              Add
-            </Button>
-          </div>
-        )}
 
         {sops.length === 0 ? (
           <p className="text-xs italic text-muted-foreground">No SOPs attached.</p>
@@ -404,6 +389,14 @@ export default function WorkflowContextPanel({
         jobId={graphSop?.job_id ?? ''}
         auditSopId={graphSop?.audit_sop_id ?? null}
         onClose={() => setGraphSop(null)}
+      />
+
+      <AddSopsDialog
+        open={adding === 'sop'}
+        busy={busy}
+        defaultAutoBuild={autoBuilt}
+        onOpenChange={(open) => setAdding(open ? 'sop' : null)}
+        onAdd={(urls, autoBuild) => void attachSops(urls, autoBuild)}
       />
     </aside>
   );

@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, FileText, Globe } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Plus, Trash2, FileText, Globe, Wand2, Upload, Loader2, File as FileIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { RuntimeAgentInput } from '@/lib/workflowsApi';
+import { workflowsApi, type RuntimeAgentInput } from '@/lib/workflowsApi';
+
+interface UploadedSop {
+  url: string;
+  name: string;
+  size: number;
+}
+
+const ACCEPTED_SOP_TYPES = '.pdf,.docx,.doc,.xlsx,.xls,.html,.htm';
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 interface CreateWorkflowDialogProps {
   open: boolean;
@@ -20,12 +36,17 @@ interface CreateWorkflowDialogProps {
   creating: boolean;
   sopUrls: string[];
   runtimeAgents: RuntimeAgentInput[];
+  autoBuild: boolean;
   onOpenChange: (open: boolean) => void;
   onNameChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onSopUrlsChange: (urls: string[]) => void;
   onRuntimeAgentsChange: (agents: RuntimeAgentInput[]) => void;
-  onCreate: () => void;
+  onAutoBuildChange: (value: boolean) => void;
+  onCreate: (override?: {
+    sopUrls: string[];
+    runtimeAgents: RuntimeAgentInput[];
+  }) => void;
 }
 
 const EMPTY_AGENT: RuntimeAgentInput = {
@@ -44,24 +65,57 @@ export default function CreateWorkflowDialog({
   creating,
   sopUrls,
   runtimeAgents,
+  autoBuild,
   onOpenChange,
   onNameChange,
   onDescriptionChange,
   onSopUrlsChange,
   onRuntimeAgentsChange,
+  onAutoBuildChange,
   onCreate,
 }: CreateWorkflowDialogProps) {
   // Local mirrors so users can type freely without the parent rerendering
   // the entire list on every keystroke.
   const [urls, setUrls] = useState<string[]>(sopUrls.length ? sopUrls : ['']);
   const [agents, setAgents] = useState<RuntimeAgentInput[]>(runtimeAgents);
+  const [uploads, setUploads] = useState<UploadedSop[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (open) {
       setUrls(sopUrls.length ? sopUrls : ['']);
       setAgents(runtimeAgents);
+      setUploads([]);
+      setUploadError(null);
     }
   }, [open, sopUrls, runtimeAgents]);
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const done: UploadedSop[] = [];
+      for (const file of Array.from(files)) {
+        const res = await workflowsApi.uploadSopDocument(file);
+        done.push(res);
+      }
+      setUploads((u) => [...u, ...done]);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : 'Upload failed. Please try again.',
+      );
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeUpload = (i: number) =>
+    setUploads((u) => u.filter((_, idx) => idx !== i));
 
   const pushUrl = () => setUrls((u) => [...u, '']);
   const removeUrl = (i: number) => setUrls((u) => u.filter((_, idx) => idx !== i));
@@ -76,13 +130,20 @@ export default function CreateWorkflowDialog({
     setAgents((a) => a.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
 
   const handleCreate = () => {
-    onSopUrlsChange(urls.map((u) => u.trim()).filter(Boolean));
-    onRuntimeAgentsChange(
-      agents
-        .filter((a) => a.name.trim() && a.url.trim())
-        .map((a) => ({ ...a, auth_token: a.auth_token?.trim() })),
-    );
-    onCreate();
+    const cleanUrls = [
+      ...urls.map((u) => u.trim()).filter(Boolean),
+      ...uploads.map((u) => u.url),
+    ];
+    const cleanAgents = agents
+      .filter((a) => a.name.trim() && a.url.trim())
+      .map((a) => ({ ...a, auth_token: a.auth_token?.trim() }));
+    // Keep parent state in sync for any other consumers...
+    onSopUrlsChange(cleanUrls);
+    onRuntimeAgentsChange(cleanAgents);
+    // ...but pass the freshly-computed values straight through so the create
+    // call doesn't read stale parent state (setState is async — the parent's
+    // newSopUrls/newRuntimeAgents wouldn't be updated yet in this same tick).
+    onCreate({ sopUrls: cleanUrls, runtimeAgents: cleanAgents });
   };
 
   return (
@@ -132,9 +193,78 @@ export default function CreateWorkflowDialog({
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              HTML links that will be crawled, contextualised, and stored against
-              this workflow when it is created.
+              HTML links or uploaded PDFs/documents. Each is crawled,
+              contextualised, and stored against this workflow — a PDF builds the
+              exact same step-by-step canvas as an HTML link.
             </p>
+
+            {/* ── File upload (drag & drop) ─────────────────────────── */}
+            <label
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                handleFiles(e.dataTransfer.files);
+              }}
+              className={`flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-3 py-5 transition-colors ${
+                dragOver
+                  ? 'border-primary bg-primary/10'
+                  : 'border-primary/40 bg-primary/5 hover:bg-primary/10'
+              }`}
+            >
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              ) : (
+                <Upload className="h-5 w-5 text-primary" />
+              )}
+              <span className="text-xs font-medium">
+                {uploading ? 'Uploading…' : 'Upload SOP files'}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                Drag &amp; drop or click — PDF, DOCX, XLSX, HTML
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_SOP_TYPES}
+                multiple
+                className="sr-only"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </label>
+
+            {/* Uploaded documents */}
+            {uploads.length > 0 && (
+              <div className="space-y-1.5">
+                {uploads.map((u, i) => (
+                  <div
+                    key={u.url}
+                    className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5"
+                  >
+                    <FileIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <span className="flex-1 truncate text-sm" title={u.name}>
+                      {u.name}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatBytes(u.size)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeUpload(i)}
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadError && (
+              <p className="text-[11px] text-destructive">{uploadError}</p>
+            )}
 
             <div className="space-y-2">
               {urls.map((url, i) => (
@@ -159,6 +289,29 @@ export default function CreateWorkflowDialog({
                 </div>
               ))}
             </div>
+
+            {/* ── Auto-build toggle ──────────────────────────────────── */}
+            <label
+              className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3"
+            >
+              <input
+                type="checkbox"
+                checked={autoBuild}
+                onChange={(e) => onAutoBuildChange(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+              />
+              <span className="space-y-0.5">
+                <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <Wand2 className="h-3.5 w-3.5 text-primary" />
+                  Auto-build workflow from SOP
+                </span>
+                <span className="block text-[11px] text-muted-foreground">
+                  When ingestion finishes, every step becomes a node and every
+                  rule is attached automatically. You then add the tool calls
+                  per node. Leave off to ingest + link only (manual canvas).
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* ── Runtime API agents ─────────────────────────────────── */}

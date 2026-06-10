@@ -35,7 +35,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/StatusBadge";
-import { workflowsApi, type WorkflowDetail } from "@/lib/workflowsApi";
+import {
+  workflowsApi,
+  type WorkflowDetail,
+  type BuildStatus,
+} from "@/lib/workflowsApi";
 import { useWorkflowCanvas } from "../hooks/useWorkflowCanvas";
 import { useWorkflowUiColors } from "../hooks/useWorkflowUiColors";
 import { nodeTypes } from "../components/nodes/nodeTypes";
@@ -56,6 +60,7 @@ import ExecutionOverlay from "../execution/ExecutionOverlay";
 import ExecutionPanel from "../execution/ExecutionPanel";
 import ExecutionToolbar from "../execution/ExecutionToolbar";
 import WorkflowBuilderLoading from "./loading";
+import BuildProgress from "./BuildProgress";
 import { useAuth } from "@/contexts/AuthContext";
 
 // ── Edge inspector (label + quick Yes/No) ────────────────────────────────────
@@ -208,6 +213,11 @@ function WorkflowBuilderInner() {
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const canvasLoadedForId = useRef<string | null>(null);
 
+  // Auto-build: while the canvas is generated from the SOP we show a build
+  // screen (with live logs) instead of the empty canvas.
+  const [buildState, setBuildState] = useState<BuildStatus | null>(null);
+  const [buildChecked, setBuildChecked] = useState(false);
+
   const refetchWorkflow = useCallback(() => {
     if (isNew || !id) return;
     workflowsApi.get(id).then((wf) => setWorkflowData({ workflow: wf }));
@@ -229,6 +239,36 @@ function WorkflowBuilderInner() {
       cancelled = true;
     };
   }, [id, isNew]);
+
+  // One-shot check on mount: is this an auto-build workflow still being built?
+  useEffect(() => {
+    if (isNew || !id) {
+      setBuildChecked(true);
+      return;
+    }
+    let cancelled = false;
+    workflowsApi
+      .buildStatus(id)
+      .then((s) => {
+        if (!cancelled) setBuildState(s);
+      })
+      .catch(() => {
+        /* non-fatal — fall through to the canvas */
+      })
+      .finally(() => {
+        if (!cancelled) setBuildChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isNew]);
+
+  const handleBuildComplete = useCallback(() => {
+    // Force the canvas effect to reload the freshly-built graph.
+    canvasLoadedForId.current = null;
+    refetchWorkflow();
+    setBuildState((s) => (s ? { ...s, built: true, phase: "done" } : s));
+  }, [refetchWorkflow]);
 
   const { bySlug: shapeCatalog } = useShapeCatalog();
   const {
@@ -453,11 +493,33 @@ function WorkflowBuilderInner() {
   const dotColor =
     ui.theme === "dark" ? "oklch(0.35 0.02 250)" : "oklch(0.78 0.02 250)";
 
-  if (workflowLoading && !isNew) {
+  if (!isNew && (workflowLoading || !buildChecked)) {
     return <WorkflowBuilderLoading />;
   }
 
-  const canExecute = !isNew && canWrite;
+  // Hold on the build screen (live logs) until the SOP→canvas build finishes,
+  // so the user never lands on an empty canvas mid-build.
+  const isBuilding =
+    !isNew &&
+    buildChecked &&
+    Boolean(buildState?.auto_build) &&
+    buildState?.phase !== "done";
+
+  if (isBuilding && id) {
+    return (
+      <BuildProgress
+        workflowId={id}
+        workflowName={workflowData?.workflow?.name}
+        initial={buildState}
+        onComplete={handleBuildComplete}
+        onSkip={() =>
+          setBuildState((s) => (s ? { ...s, built: true, phase: "done" } : s))
+        }
+        onBack={() => navigate("/workflows")}
+      />
+    );
+  }
+
   const isCanvasLocked = isExecutionMode || !canWrite;
 
   return (
@@ -582,20 +644,15 @@ function WorkflowBuilderInner() {
             </div>
           ) : (
             <>
-              {canExecute && (
-                <Button
-                  size="sm"
-                  onClick={() => void handleStartLiveExecution()}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  <Play className="h-3.5 w-3.5 mr-1.5" />
-                  Execute
-                </Button>
-              )}
               <Button
                 size="sm"
                 onClick={saveWorkflow}
                 disabled={!canWrite || !isDirty || isSaving || isNew}
+                title={
+                  !canWrite
+                    ? "Only admins can save workflows"
+                    : undefined
+                }
               >
                 {isSaving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
@@ -771,6 +828,10 @@ function WorkflowBuilderInner() {
                   workflowDescription={workflowMeta.description ?? ""}
                   sops={workflowData?.workflow?.sops ?? []}
                   agents={workflowData?.workflow?.agents ?? []}
+                  autoBuilt={Boolean(
+                    (workflowData?.workflow?.metadata as Record<string, unknown> | undefined)
+                      ?.auto_build_canvas,
+                  )}
                   onAttached={refetchWorkflow}
                 />
               ) : null}

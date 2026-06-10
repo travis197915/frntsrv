@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { X, Trash2, Layers, Sparkles } from "lucide-react";
+import { X, Trash2, Layers, Sparkles, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -184,6 +184,7 @@ export default function ConfigPanel({
   const attachedRules =
     (props.sop_rules as AttachedSopRule[] | undefined) ?? [];
   const attachedTools = (props.tool_calls as AttachedTool[] | undefined) ?? [];
+  const manualOos = props.manual_out_of_scope === true;
 
   const setAttachments = (rules: AttachedSopRule[], tools: AttachedTool[]) => {
     onUpdate(node.id, {
@@ -286,6 +287,49 @@ export default function ConfigPanel({
             </div>
           </>
         ) : null}
+
+        {/* Manual execution-engine exclusion — works on ANY node in ANY
+            workflow, independent of the SOP-derived out-of-scope rollup. */}
+        {!isWorkArea && (
+          <>
+            <Separator />
+            <label
+              className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors ${
+                manualOos
+                  ? "border-rose-500/40 bg-rose-500/10"
+                  : "border-border bg-muted/30"
+              } ${readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-muted/50"}`}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 h-3.5 w-3.5 accent-rose-500"
+                checked={manualOos}
+                disabled={readOnly}
+                onChange={(e) =>
+                  onUpdate(node.id, {
+                    properties: {
+                      ...props,
+                      manual_out_of_scope: e.target.checked,
+                    },
+                  } as unknown as Partial<WorkflowNodeData>)
+                }
+              />
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                  <Ban
+                    className={`h-3 w-3 ${manualOos ? "text-rose-400" : "text-muted-foreground"}`}
+                  />
+                  Mark out of scope for the execution engine
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                  When enabled, the execution engine skips every rule on this
+                  node (no LLM call) and continues with the rest of the
+                  workflow. Saved with the workflow.
+                </p>
+              </div>
+            </label>
+          </>
+        )}
 
         {/* Per-node attachments: SOP rules + runtime tool calls */}
         {workflowId && !isWorkArea && (

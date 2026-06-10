@@ -1,5 +1,44 @@
 import type { BuilderAttachedAgent, BuilderSopStatus } from "./builder";
 
+// ── Auto-build progress (polled while the canvas is generated from SOPs) ───
+
+export type BuildPhase =
+  | "idle"
+  | "queued"
+  | "ingesting"
+  | "building"
+  | "done"
+  | "failed";
+
+export interface BuildStatusJob {
+  job_id: string;
+  seed_url: string;
+  status: string;
+  docs_processed: number;
+  docs_failed: number;
+}
+
+export interface BuildStatusLog {
+  stage: string;
+  status: string;
+  doc_url: string;
+  duration_ms: number | null;
+  ts: string | null;
+  error: string;
+}
+
+export interface BuildStatus {
+  auto_build: boolean;
+  phase: BuildPhase;
+  built: boolean;
+  needs_tools: boolean;
+  shape_count: number;
+  stats: { sops: number; shapes: number; rules: number } | null;
+  jobs: BuildStatusJob[];
+  logs: BuildStatusLog[];
+  llm_errors: { error: string }[];
+}
+
 // ── Attachable rules + tools (per workflow, for per-node attachments) ──────
 
 export interface AttachableHtmlReference {
@@ -74,6 +113,11 @@ export interface AttachedSopRule {
   subrule_id?: string;
   /** Nesting level: 0 = top-level rule, 1 = sub-rule, 2 = sub-sub-rule. */
   depth?: number;
+  /**
+   * Key of the parent rule this sub-rule nests under (manual sub-rules only).
+   * Null/undefined for top-level rules. Drives nested execution + rendering.
+   */
+  parent_key?: string | null;
   /** True when the rule (or its enclosing section) is flagged out of scope. */
   is_out_of_scope?: boolean;
   condition: string;
@@ -87,6 +131,12 @@ export interface AttachedSopRule {
    * scoping notes / lookup tables.
    */
   additional_context?: string;
+  /**
+   * True for rules the auditor authored by hand on the node (no SOP source).
+   * Custom rules use a `custom:<uuid>` key and are persisted in
+   * `Shape.properties.sop_rules` rather than as SOP-backed bindings.
+   */
+  is_custom?: boolean;
 }
 
 export interface AttachedTool {
@@ -183,6 +233,9 @@ export interface WorkflowSummary {
   updatedAt: string;
   sops?: WorkflowSop[];
   agents?: WorkflowAgent[];
+  // Free-form server bag. Carries auto-build flags such as `needs_tools`,
+  // `auto_build_canvas`, `auto_build_complete`, and `tool_prompt_shapes`.
+  metadata?: Record<string, unknown>;
 }
 
 export interface NodeMeta {

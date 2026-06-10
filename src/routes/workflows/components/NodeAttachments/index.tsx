@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { Plus, FileText, Wrench } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Plus, FileText, Wrench, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toolPickKey } from "@/utils/nodeAttachments";
 import type { AttachedSopRule, AttachedTool } from "@/interfaces/workflows";
 import AttachedRuleCard from "./AttachedRuleCard";
 import GroupedToolsList from "./GroupedToolsList";
 import FullscreenAttachmentPicker from "./HtmlFullscreenPicker";
+import CustomRuleForm from "./CustomRuleForm";
 
 interface NodeAttachmentsProps {
   workflowId: string;
@@ -23,6 +24,34 @@ export default function NodeAttachments({
   readOnly = false,
 }: NodeAttachmentsProps) {
   const [open, setOpen] = useState(false);
+  const [addingCustom, setAddingCustom] = useState(false);
+  // Key of the rule a sub-rule is currently being authored under (or null).
+  const [subRuleParent, setSubRuleParent] = useState<string | null>(null);
+
+  const addCustomRule = (rule: AttachedSopRule) => {
+    if (readOnly) return;
+    let next: AttachedSopRule[];
+    if (rule.parent_key) {
+      const pIdx = rules.findIndex((r) => r.key === rule.parent_key);
+      if (pIdx === -1) {
+        next = [...rules, rule];
+      } else {
+        // Insert right after the parent and all of its existing descendants
+        // so the nested block reads top-down.
+        const pDepth = rules[pIdx].depth ?? 0;
+        let ins = pIdx + 1;
+        while (ins < rules.length && (rules[ins].depth ?? 0) > pDepth) ins += 1;
+        next = [...rules.slice(0, ins), rule, ...rules.slice(ins)];
+      }
+    } else {
+      next = [...rules, rule];
+    }
+    onChange(
+      next.map((r, i) => ({ ...r, ordering: i })),
+      tools,
+    );
+    setSubRuleParent(null);
+  };
 
   const removeRule = (key: string) => {
     if (readOnly) return;
@@ -106,21 +135,40 @@ export default function NodeAttachments({
   return (
     <>
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <FileText className="h-3 w-3" />
-            SOP Rules
-          </label>
+        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <FileText className="h-3 w-3" />
+          Rules
+        </label>
+        <div className="flex items-center gap-1.5">
+          {!readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 flex-1 min-w-0 px-2 text-[11px]"
+              onClick={() => setAddingCustom((v) => !v)}
+            >
+              <Wand2 className="h-3 w-3 mr-1 shrink-0" />
+              Custom rule
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
-            className="h-7 px-2 text-[11px]"
+            className="h-7 flex-1 min-w-0 px-2 text-[11px]"
             onClick={() => setOpen(true)}
           >
-            <Plus className="h-3 w-3 mr-1" />
+            <Plus className="h-3 w-3 mr-1 shrink-0" />
             {readOnly ? "View rules & tools" : "Pick rules & tools"}
           </Button>
         </div>
+
+        {addingCustom && !readOnly && (
+          <CustomRuleForm
+            ordering={rules.length}
+            onAdd={addCustomRule}
+            onClose={() => setAddingCustom(false)}
+          />
+        )}
 
         {rules.length === 0 ? (
           <p className="text-[11px] text-muted-foreground italic">
@@ -131,26 +179,52 @@ export default function NodeAttachments({
           </p>
         ) : (
           <ul className="space-y-1.5">
-            {rules.map((r, i) => (
-              <AttachedRuleCard
-                key={r.key}
-                rule={r}
-                depth={depthByKey.get(r.key) ?? 0}
-                allRules={rules}
-                depthByKey={depthByKey}
-                readOnly={readOnly}
-                onRemove={readOnly ? undefined : removeRule}
-                onMoveUp={
-                  readOnly || i === 0 ? undefined : () => moveRule(r.key, "up")
-                }
-                onMoveDown={
-                  readOnly || i >= rules.length - 1
-                    ? undefined
-                    : () => moveRule(r.key, "down")
-                }
-                onContextChange={readOnly ? undefined : updateRuleContext}
-              />
-            ))}
+            {rules.map((r, i) => {
+              const rDepth = depthByKey.get(r.key) ?? 0;
+              return (
+                <Fragment key={r.key}>
+                  <AttachedRuleCard
+                    rule={r}
+                    depth={rDepth}
+                    allRules={rules}
+                    depthByKey={depthByKey}
+                    readOnly={readOnly}
+                    onRemove={readOnly ? undefined : removeRule}
+                    onMoveUp={
+                      readOnly || i === 0 ? undefined : () => moveRule(r.key, "up")
+                    }
+                    onMoveDown={
+                      readOnly || i >= rules.length - 1
+                        ? undefined
+                        : () => moveRule(r.key, "down")
+                    }
+                    onContextChange={readOnly ? undefined : updateRuleContext}
+                    onAddSubRule={
+                      readOnly
+                        ? undefined
+                        : (key) => {
+                            setAddingCustom(false);
+                            setSubRuleParent((cur) => (cur === key ? null : key));
+                          }
+                    }
+                  />
+                  {subRuleParent === r.key && !readOnly && (
+                    <li style={{ marginLeft: (rDepth + 1) * 16 }}>
+                      <CustomRuleForm
+                        ordering={rules.length}
+                        parentKey={r.key}
+                        depth={rDepth + 1}
+                        parentLabel={
+                          r.subrule_id || r.section_label || `Rule ${i + 1}`
+                        }
+                        onAdd={addCustomRule}
+                        onClose={() => setSubRuleParent(null)}
+                      />
+                    </li>
+                  )}
+                </Fragment>
+              );
+            })}
           </ul>
         )}
       </div>

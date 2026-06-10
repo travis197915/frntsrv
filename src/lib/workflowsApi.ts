@@ -12,12 +12,15 @@
  */
 
 import { builderClient, toolsClient } from "./clients";
+import { getToken } from "@/utils/auth";
 import type {
   BuilderConnection,
   BuilderGraph,
   BuilderWorkflow,
 } from "../interfaces/builder";
 import type {
+  BuildStatus,
+  BuildStatusLog,
   NodeMeta,
   RuntimeAgentInput,
   ToolInvokeResponse,
@@ -31,6 +34,7 @@ import type {
 export type {
   AttachableExclusion,
   AttachableSopRule,
+  BuildStatus,
   NodeMeta,
   RuntimeAgentInput,
   ToolInvokeResponse,
@@ -68,6 +72,7 @@ function toSummary(wf: BuilderWorkflow): WorkflowSummary {
     updatedAt: wf.updated_at,
     sops: wf.sops ?? [],
     agents: wf.attached_agents ?? [],
+    metadata: wf.metadata ?? {},
   };
 }
 
@@ -220,6 +225,99 @@ function toDetail(graph: BuilderGraph): WorkflowDetail {
   };
 }
 
+// ── Build log stream (SSE over fetch — keeps the JWT header) ────────────────
+
+export interface BuildStreamHandlers {
+  onLog?: (log: BuildStatusLog) => void;
+  onLlmError?: (err: { error: string }) => void;
+  onDone?: (data: {
+    stats: { sops: number; shapes: number; rules: number } | null;
+    needs_tools: boolean;
+  }) => void;
+  onFailed?: (data: { detail: string }) => void;
+}
+
+const BUILDER_BASE = `${(
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000"
+).replace(/\/+$/, "")}/api/builder`;
+
+/**
+ * Tail the SOP→workflow build via Server-Sent Events. Returns a promise that
+ * resolves when the stream ends (done/failed/aborted). The native EventSource
+ * API can't send Authorization headers, so we parse SSE off a fetch stream.
+ */
+export async function streamBuildLogs(
+  id: string,
+  handlers: BuildStreamHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BUILDER_BASE}/workflows/${id}/build_stream/`, {
+    headers: {
+      Accept: "text/event-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`build stream failed: ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const chunk = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+
+      let event = "message";
+      let data = "";
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith(":")) continue; // heartbeat / comment
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) continue;
+
+      let payload: unknown;
+      try {
+        payload = JSON.parse(data);
+      } catch {
+        continue;
+      }
+
+      switch (event) {
+        case "log":
+          handlers.onLog?.(payload as BuildStatusLog);
+          break;
+        case "llm_error":
+          handlers.onLlmError?.(payload as { error: string });
+          break;
+        case "done":
+          handlers.onDone?.(
+            payload as {
+              stats: { sops: number; shapes: number; rules: number } | null;
+              needs_tools: boolean;
+            },
+          );
+          return;
+        case "failed":
+          handlers.onFailed?.(payload as { detail: string });
+          return;
+        default:
+          break;
+      }
+    }
+  }
+}
+
 // ── Public surface ─────────────────────────────────────────────────────────
 
 export const workflowsApi = {
@@ -243,6 +341,10 @@ export const workflowsApi = {
     edges?: string;
     sopUrls?: string[];
     runtimeAgents?: RuntimeAgentInput[];
+    // Opt-in add-on: when true, the backend auto-builds the canvas (shapes +
+    // rule bindings) from the ingested SOP(s) once ingestion completes, leaving
+    // tool calls empty for the user to attach.
+    autoBuildFromSop?: boolean;
   }): Promise<WorkflowDetail> {
     const wf = await builderClient.post<BuilderWorkflow>("/workflows/", {
       name: input.name,
@@ -250,6 +352,7 @@ export const workflowsApi = {
       is_active: input.isActive ?? true,
       sop_urls: input.sopUrls ?? [],
       runtime_agents: input.runtimeAgents ?? [],
+      auto_build_from_sop: input.autoBuildFromSop ?? false,
     });
     if (input.nodes || input.edges) {
       const nodes = input.nodes
@@ -270,6 +373,10 @@ export const workflowsApi = {
     return toDetail(graph);
   },
 
+  async buildStatus(id: string): Promise<BuildStatus> {
+    return builderClient.get<BuildStatus>(`/workflows/${id}/build_status/`);
+  },
+
   async getAttachable(id: string): Promise<WorkflowAttachable> {
     return builderClient.get<WorkflowAttachable>(
       `/workflows/${id}/attachable/`,
@@ -287,16 +394,39 @@ export const workflowsApi = {
 
   async attach(
     id: string,
-    input: { sopUrls?: string[]; runtimeAgents?: RuntimeAgentInput[] },
+    input: {
+      sopUrls?: string[];
+      runtimeAgents?: RuntimeAgentInput[];
+      // When true the canvas is rebuilt from ALL of the workflow's SOPs once
+      // ingestion completes (one workbench column per SOP — N SOPs supported).
+      autoBuildFromSop?: boolean;
+    },
   ): Promise<WorkflowDetail> {
     await builderClient.post(`/workflows/${id}/attach/`, {
       sop_urls: input.sopUrls ?? [],
       runtime_agents: input.runtimeAgents ?? [],
+      auto_build_from_sop: input.autoBuildFromSop ?? false,
     });
     const graph = await builderClient.get<BuilderGraph>(
       `/workflows/${id}/graph/`,
     );
     return toDetail(graph);
+  },
+
+  /**
+   * Upload a local SOP document (PDF/DOCX/XLSX/HTML). Returns a ``file://``
+   * seed URL that can be passed inside ``sopUrls`` to create()/attach() —
+   * the file is then ingested + auto-built exactly like an HTML link.
+   */
+  async uploadSopDocument(
+    file: File,
+  ): Promise<{ url: string; name: string; size: number }> {
+    const form = new FormData();
+    form.append("file", file);
+    return builderClient.post<{ url: string; name: string; size: number }>(
+      "/workflows/sop_upload/",
+      form,
+    );
   },
 
   async update(
