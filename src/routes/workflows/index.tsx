@@ -6,7 +6,6 @@ import Loader from '@/components/Loader';
 import EmptyState from '@/components/EmptyState';
 import SearchInput from '@/components/SearchInput';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/utils/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   workflowsApi,
@@ -19,7 +18,6 @@ import CreateWorkflowDialog from './components/CreateWorkflowDialog';
 export default function WorkflowsPage() {
   const navigate = useNavigate();
   const { canWrite } = useAuth();
-  const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
@@ -46,25 +44,15 @@ export default function WorkflowsPage() {
   }, [refetch]);
 
   const workflows = useMemo(() => {
-    let filtered = rawWorkflows;
+    if (!searchQuery.trim()) return rawWorkflows;
 
-    if (statusFilter) {
-      filtered = filtered.filter(
-        (w: any) => w.status?.toLowerCase() === statusFilter.toLowerCase(),
-      );
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (w: any) =>
-          w.name?.toLowerCase().includes(q) ||
-          w.description?.toLowerCase().includes(q),
-      );
-    }
-
-    return filtered;
-  }, [rawWorkflows, statusFilter, searchQuery]);
+    const q = searchQuery.toLowerCase();
+    return rawWorkflows.filter(
+      (w: any) =>
+        w.name?.toLowerCase().includes(q) ||
+        w.description?.toLowerCase().includes(q),
+    );
+  }, [rawWorkflows, searchQuery]);
 
   const handleCreateNew = async () => {
     setIsCreateOpen(true);
@@ -113,16 +101,6 @@ export default function WorkflowsPage() {
     navigate(`/workflows/${dup.id}`);
   };
 
-  const STATUS_TABS = [
-    { value: '',          label: 'All' },
-    { value: 'running',   label: 'Running' },
-    { value: 'idle',      label: 'Idle' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'failed',    label: 'Failed' },
-  ];
-
-  const runningCount = rawWorkflows.filter((w: any) => w.status?.toLowerCase() === 'running').length;
-
   const isLoading = loading && rawWorkflows.length === 0;
 
   return (
@@ -160,37 +138,6 @@ export default function WorkflowsPage() {
         </Button>
       </div>
 
-      {/* Status tabs + summary */}
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setStatusFilter(tab.value)}
-              className={cn(
-                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                statusFilter === tab.value
-                  ? 'bg-background text-foreground shadow-sm border border-border'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-xs text-muted-foreground shrink-0">
-          {workflows.length} workflow{workflows.length !== 1 ? 's' : ''}
-          {runningCount > 0 && (
-            <span className="ml-1.5 inline-flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-blue-600 dark:text-blue-400">{runningCount} running</span>
-            </span>
-          )}
-        </p>
-      </div>
-
       {/* Loading */}
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -201,12 +148,12 @@ export default function WorkflowsPage() {
           icon={GitBranch}
           title="No workflows found"
           description={
-            searchQuery || statusFilter
-              ? 'No workflows match your filters. Try adjusting your search or status.'
+            searchQuery
+              ? 'No workflows match your search.'
               : 'Create your first workflow to start building automation pipelines.'
           }
           action={
-            !searchQuery && !statusFilter && canWrite ? (
+            !searchQuery && canWrite ? (
               <Button size="sm" onClick={handleCreateNew}>
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
                 New Workflow
@@ -226,7 +173,6 @@ export default function WorkflowsPage() {
               config={wf.config}
               updatedAt={wf.updatedAt}
               needsTools={Boolean(wf.metadata?.needs_tools)}
-              onRun={() => {}}
               onDuplicate={canWrite ? () => void handleDuplicateWorkflow(wf.id) : undefined}
               onDelete={canWrite ? () => void handleDeleteWorkflow(wf.id) : undefined}
               disableActions={!canWrite}

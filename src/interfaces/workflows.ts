@@ -59,6 +59,11 @@ export interface AttachableSopRule {
   section_label: string;
   section_category: string;
   section_narrative: string;
+  /** Hierarchical rule id, e.g. "RULE-007-002". Present for decisions. */
+  subrule_id?: string;
+  /** Nesting level: 0 = top-level rule, 1 = sub-rule, 2 = sub-sub-rule, … */
+  depth?: number;
+  is_out_of_scope?: boolean;
   condition: string;
   action: string;
   decision_type: string;

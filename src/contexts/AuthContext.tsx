@@ -98,7 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const payload = await authApi.post<AuthResponse>('/auth/login', { email, password });
         persistSession(payload);
-        navigate('/dashboard', { replace: true });
+        navigate('/workflows', { replace: true });
       } finally {
         setIsLoading(false);
       }
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           name,
         });
         persistSession(payload);
-        navigate('/dashboard', { replace: true });
+        navigate('/workflows', { replace: true });
       } finally {
         setIsLoading(false);
       }

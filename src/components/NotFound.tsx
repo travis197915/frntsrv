@@ -15,10 +15,10 @@ export default function NotFound() {
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <Link
-          to="/"
+          to="/workflows"
           className="mt-2 inline-flex items-center justify-center rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
         >
-          Back to dashboard
+          Back to workflows
         </Link>
       </div>
     </div>

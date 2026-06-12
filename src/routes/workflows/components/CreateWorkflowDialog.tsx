@@ -148,7 +148,7 @@ export default function CreateWorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[min(64rem,calc(100vw-2rem))] max-w-none max-h-[90vh] overflow-x-hidden overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Workflow</DialogTitle>
           <DialogDescription>
@@ -181,8 +181,10 @@ export default function CreateWorkflowDialog({
             </div>
           </div>
 
+          {/* ── Two-column: SOP docs beside runtime agents ─────────── */}
+          <div className="grid gap-5 pt-2 border-t border-border md:grid-cols-2">
           {/* ── SOP links (static rules) ───────────────────────────── */}
-          <div className="space-y-2 pt-2 border-t border-border">
+          <div className="space-y-2 min-w-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
@@ -315,7 +317,7 @@ export default function CreateWorkflowDialog({
           </div>
 
           {/* ── Runtime API agents ─────────────────────────────────── */}
-          <div className="space-y-2 pt-2 border-t border-border">
+          <div className="space-y-2 min-w-0 md:border-l md:border-border md:pl-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Globe className="h-3.5 w-3.5 text-muted-foreground" />
@@ -410,6 +412,7 @@ export default function CreateWorkflowDialog({
                 ))
               )}
             </div>
+          </div>
           </div>
         </div>
 

@@ -1,5 +1,4 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import DashboardPage from "@/routes/dashboard";
 import WorkflowsPage from "@/routes/workflows";
 import WorkflowBuilderPage from "@/routes/workflows/[id]";
 // import AgentsPage from "@/routes/agents";
@@ -24,8 +23,8 @@ export default function AppRoutes() {
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<Navigate to="/workflows" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/workflows" replace />} />
         <Route path="/workflows" element={<WorkflowsPage />} />
         <Route path="/workflows/:id" element={<WorkflowBuilderPage />} />
         {/* Hidden until launch: agents, activity, ai-usage

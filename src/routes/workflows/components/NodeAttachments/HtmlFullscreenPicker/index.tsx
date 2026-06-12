@@ -535,6 +535,11 @@ export default function FullscreenAttachmentPicker({
           source: r.source,
           section_label: r.section_label,
           section_narrative: r.section_narrative || "",
+          // Carry the hierarchy so picked sub-rules indent under their parent
+          // exactly like auto-built nodes (rules → sub-rules → sub-sub-rules).
+          subrule_id: r.subrule_id,
+          depth: r.depth,
+          is_out_of_scope: r.is_out_of_scope,
           condition: r.condition,
           action: r.action,
           decision_type: r.decision_type,

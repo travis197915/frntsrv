@@ -15,10 +15,10 @@ export default function UnauthorizedPage() {
             You don&apos;t have permission to view this page.
           </p>
           <Link
-            to="/"
+            to="/workflows"
             className="mt-6 inline-flex items-center justify-center rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
           >
-            Back to dashboard
+            Back to workflows
           </Link>
         </div>
       </div>

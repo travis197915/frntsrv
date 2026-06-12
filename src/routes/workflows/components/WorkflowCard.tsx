@@ -1,11 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Play, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle, Wrench } from 'lucide-react';
+import { ArrowRight, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle, Wrench } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/utils/utils';
@@ -19,7 +18,6 @@ interface WorkflowCardProps {
   createdAt?: string | null;
   updatedAt?: string | null;
   needsTools?: boolean;
-  onRun?: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
   disableActions?: boolean;
@@ -128,7 +126,6 @@ export default function WorkflowCard({
   config,
   updatedAt,
   needsTools,
-  onRun,
   onDelete,
   disableActions,
 }: WorkflowCardProps) {
@@ -191,11 +188,6 @@ export default function WorkflowCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={(e: React.MouseEvent) => { e.stopPropagation(); onRun?.(); }} disabled={disableActions}>
-                <Play className="h-3.5 w-3.5 mr-2" />
-                Run
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDelete?.(); }}
                 disabled={disableActions}

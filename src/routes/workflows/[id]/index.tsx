@@ -27,7 +27,6 @@ import {
   ArrowLeft,
   Save,
   Loader2,
-  Play,
   Square,
   Pencil,
   Check,
@@ -323,7 +322,6 @@ function WorkflowBuilderInner() {
 
   const {
     execution,
-    startLiveExecution,
     cancel,
     reset,
     submitInteraction,
@@ -392,35 +390,13 @@ function WorkflowBuilderInner() {
     }
   }, [isEditingName]);
 
-  // ── Execution: static demo ─────────────────────────────────────────────────
   // ── Execution: live API ────────────────────────────────────────────────────
-  const handleStartLiveExecution = useCallback(async () => {
-    if (!id || id === "new") return;
-    setIsExecutionMode(true);
-    setSelectedNodeId(null);
-    setExecutionError(null);
-
-    try {
-      await startLiveExecution(id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Execution failed";
-      setExecutionError(msg);
-      setIsExecutionMode(false);
-    }
-  }, [id, startLiveExecution, setSelectedNodeId]);
-
   const handleStopExecution = useCallback(() => {
     cancel();
     setIsExecutionMode(false);
     setExecutionError(null);
     reset();
   }, [cancel, reset]);
-
-  const handleRunAgain = useCallback(() => {
-    reset();
-    setExecutionError(null);
-    setTimeout(() => void handleStartLiveExecution(), 0);
-  }, [reset, handleStartLiveExecution]);
 
   const handleClosePanel = useCallback(() => {
     if (
@@ -612,24 +588,14 @@ function WorkflowBuilderInner() {
               {execution.status === "completed" ||
               execution.status === "failed" ||
               execution.status === "cancelled" ? (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={handleRunAgain}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <Play className="h-3.5 w-3.5 mr-1.5" />
-                    Run Again
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleStopExecution}
-                    className="text-muted-foreground"
-                  >
-                    Exit
-                  </Button>
-                </>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleStopExecution}
+                  className="text-muted-foreground"
+                >
+                  Exit
+                </Button>
               ) : (
                 <Button
                   size="sm"

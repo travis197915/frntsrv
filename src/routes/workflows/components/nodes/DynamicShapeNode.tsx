@@ -145,8 +145,14 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
   const slug  = typeof data.definitionSlug === 'string' ? data.definitionSlug : '';
   const shape = detectShapeType(slug, def?.label ?? data.label ?? '');
 
-  let w = width  ?? def?.default_width  ?? 160;
-  let h = height ?? def?.default_height ?? 56;
+  // xyflow hands `width`/`height` of 0 for not-yet-measured or collapsed
+  // nodes. 0 is not nullish, so `??` keeps it and the SVG geometry below
+  // (`w - sw`) turns negative → React's "<rect> width: -2" errors. Use `||`
+  // to fall back to the design size, then floor to a min that always exceeds
+  // the stroke width so no shape can ever produce a negative dimension.
+  const MIN_DIM = 8;
+  let w = Math.max(width  || def?.default_width  || 160, MIN_DIM);
+  let h = Math.max(height || def?.default_height || 56,  MIN_DIM);
 
   if (shape === 'decision') {
     h = Math.max(h, 64);
@@ -186,6 +192,18 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
       : partialOos
         ? `Out of Scope ${oosCount}/${ruleCount}`
         : '';
+
+  const labelStyle: React.CSSProperties = {
+    margin: 0,
+    fontSize: 12,
+    fontWeight: 500,
+    color,
+    lineHeight: 1.4,
+    display: '-webkit-box',
+    WebkitLineClamp: 3,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  };
 
   return (
     <>
@@ -249,29 +267,22 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
         ) : null}
 
         <div style={{ position: 'relative', zIndex: 1, padding: '0 16px', textAlign: 'center', maxWidth: '85%' }}>
-          <Tooltip open={isClamped ? undefined : false}>
-            <TooltipTrigger asChild>
-              <p
-                ref={labelRef}
-                style={{
-                  margin: 0,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color,
-                  lineHeight: 1.4,
-                  display: '-webkit-box',
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                }}
-              >
+          {/* Only wrap in a Tooltip when the label is actually clamped.
+              Toggling a single Tooltip's `open` between a boolean and
+              undefined makes Radix flip controlled↔uncontrolled and warn;
+              mounting/unmounting the whole Tooltip avoids that entirely. */}
+          {isClamped ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p ref={labelRef} style={labelStyle}>{label}</p>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[240px] text-center">
                 {label}
-              </p>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[240px] text-center">
-              {label}
-            </TooltipContent>
-          </Tooltip>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <p ref={labelRef} style={labelStyle}>{label}</p>
+          )}
           {data.description ? (
             <p style={{ margin: '2px 0 0', fontSize: 10, color, opacity: 0.6, lineHeight: 1.3 }}>
               {String(data.description).slice(0, 60)}
