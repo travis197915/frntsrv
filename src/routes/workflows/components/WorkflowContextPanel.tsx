@@ -33,6 +33,9 @@ interface WorkflowContextPanelProps {
   /** True when the workflow canvas was auto-built from its SOPs. */
   autoBuilt?: boolean;
   onAttached: () => void;
+  /** Fired right after a SOP ingestion is dispatched so the parent can switch
+   *  to the live build-progress (SSE) screen. */
+  onIngestStarted?: () => void;
 }
 
 const STATUS_STYLES: Record<string, { label: string; icon: typeof Clock; tone: string }> = {
@@ -158,6 +161,7 @@ export default function WorkflowContextPanel({
   agents,
   autoBuilt = false,
   onAttached,
+  onIngestStarted,
 }: WorkflowContextPanelProps) {
   const [adding, setAdding] = useState<'sop' | 'agent' | null>(null);
   const [graphSop, setGraphSop] = useState<WorkflowSop | null>(null);
@@ -185,10 +189,12 @@ export default function WorkflowContextPanel({
       await workflowsApi.attach(workflowId, { sopUrls: urls, autoBuildFromSop: autoBuild });
       setAdding(null);
       onAttached();
+      // Jump to the live progress (SSE) screen while the new SOP ingests.
+      onIngestStarted?.();
     } finally {
       setBusy(false);
     }
-  }, [workflowId, onAttached]);
+  }, [workflowId, onAttached, onIngestStarted]);
 
   const attachAgent = useCallback(async () => {
     if (!newAgent.name.trim() || !newAgent.url.trim()) return;

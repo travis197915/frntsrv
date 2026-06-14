@@ -193,6 +193,11 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
         ? `Out of Scope ${oosCount}/${ruleCount}`
         : '';
 
+  // A diamond's inscribed (text-safe) area is far smaller than its bounding
+  // box — text centered at 85% width spills past the slanted edges. Tighten the
+  // text box and line clamps for diamonds so content always stays inside.
+  const isDiamond = shape === 'decision';
+
   const labelStyle: React.CSSProperties = {
     margin: 0,
     fontSize: 12,
@@ -200,9 +205,26 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
     color,
     lineHeight: 1.4,
     display: '-webkit-box',
-    WebkitLineClamp: 3,
+    WebkitLineClamp: isDiamond ? 2 : 3,
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+  };
+
+  const descStyle: React.CSSProperties = {
+    margin: '2px 0 0',
+    fontSize: 10,
+    color,
+    opacity: 0.6,
+    lineHeight: 1.3,
+    display: '-webkit-box',
+    WebkitLineClamp: isDiamond ? 1 : 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    maxWidth: '100%',
   };
 
   return (
@@ -266,7 +288,21 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
           </Tooltip>
         ) : null}
 
-        <div style={{ position: 'relative', zIndex: 1, padding: '0 16px', textAlign: 'center', maxWidth: '85%' }}>
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            padding: isDiamond ? '0 8px' : '0 16px',
+            textAlign: 'center',
+            maxWidth: isDiamond ? '58%' : '85%',
+            maxHeight: isDiamond ? '54%' : 'calc(100% - 8px)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {/* Only wrap in a Tooltip when the label is actually clamped.
               Toggling a single Tooltip's `open` between a boolean and
               undefined makes Radix flip controlled↔uncontrolled and warn;
@@ -284,8 +320,8 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
             <p ref={labelRef} style={labelStyle}>{label}</p>
           )}
           {data.description ? (
-            <p style={{ margin: '2px 0 0', fontSize: 10, color, opacity: 0.6, lineHeight: 1.3 }}>
-              {String(data.description).slice(0, 60)}
+            <p style={descStyle}>
+              {String(data.description)}
             </p>
           ) : null}
         </div>

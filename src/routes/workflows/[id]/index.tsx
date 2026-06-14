@@ -269,6 +269,22 @@ function WorkflowBuilderInner() {
     setBuildState((s) => (s ? { ...s, built: true, phase: "done" } : s));
   }, [refetchWorkflow]);
 
+  // Re-poll build status after a new SOP is ingested into an existing
+  // workflow so the live progress (SSE) screen re-engages — mirrors the
+  // "Create with AI" flow.
+  const refreshBuildStatus = useCallback(() => {
+    if (!id) return;
+    workflowsApi
+      .buildStatus(id)
+      .then((s) => {
+        setBuildState(s);
+        setBuildChecked(true);
+      })
+      .catch(() => {
+        /* non-fatal */
+      });
+  }, [id]);
+
   const { bySlug: shapeCatalog } = useShapeCatalog();
   const {
     nodes,
@@ -759,8 +775,8 @@ function WorkflowBuilderInner() {
           </div>
         </ResizablePanel>
 
-        {/* Right panel — config / execution, only shown when there's content */}
-        {(isExecutionMode || selectedNode || (!isNew && id)) && (
+        {/* Right panel — always the context panel; ConfigPanel is a floating modal */}
+        {(isExecutionMode || (!isNew && id)) && (
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
@@ -778,15 +794,6 @@ function WorkflowBuilderInner() {
                   onSubmitSopInput={submitSopInput}
                   onClose={handleClosePanel}
                 />
-              ) : selectedNode ? (
-                <ConfigPanel
-                  node={selectedNode}
-                  onUpdate={updateNodeData}
-                  onDelete={deleteNode}
-                  onClose={() => setSelectedNodeId(null)}
-                  workflowId={isNew ? undefined : id}
-                  readOnly={!canWrite}
-                />
               ) : !isNew && id ? (
                 <WorkflowContextPanel
                   workflowId={id}
@@ -799,10 +806,27 @@ function WorkflowBuilderInner() {
                       ?.auto_build_canvas,
                   )}
                   onAttached={refetchWorkflow}
+                  onIngestStarted={refreshBuildStatus}
                 />
               ) : null}
             </ResizablePanel>
           </>
+        )}
+
+        {/* Node inspector — floats as a wide modal over the canvas */}
+        {selectedNode && (
+          <ConfigPanel
+            node={selectedNode}
+            onUpdate={updateNodeData}
+            onDelete={deleteNode}
+            onClose={() => setSelectedNodeId(null)}
+            workflowId={isNew ? undefined : id}
+            readOnly={!canWrite}
+            workflowSops={workflowData?.workflow?.sops ?? []}
+            onSave={canWrite && !isNew ? saveWorkflow : undefined}
+            isSaving={isSaving}
+            isDirty={isDirty}
+          />
         )}
       </ResizablePanelGroup>
 
@@ -823,6 +847,33 @@ function WorkflowBuilderInner() {
           }
           onCancel={handleStopExecution}
         />
+      )}
+
+      {/* Saving progress — a blunt, blocking overlay so the auditor sees the
+          save is in flight (the graph PUT can take several seconds) and can't
+          double-submit. Dismisses itself when isSaving flips false. */}
+      {isSaving && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex w-[320px] flex-col items-center gap-4 rounded-xl border border-border bg-card px-6 py-7 shadow-xl">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-foreground">
+                Saving workflow…
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Persisting nodes, rules and tool bindings. This can take a few
+                seconds — please don't close the tab.
+              </p>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-1/3 animate-[wf-indeterminate_1.1s_ease-in-out_infinite] rounded-full bg-primary" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

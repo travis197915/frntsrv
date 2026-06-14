@@ -123,8 +123,18 @@ export interface AttachedSopRule {
    * Null/undefined for top-level rules. Drives nested execution + rendering.
    */
   parent_key?: string | null;
-  /** True when the rule (or its enclosing section) is flagged out of scope. */
+  /**
+   * Effective out-of-scope flag for this rule: SOP-derived OR the auditor's
+   * manual toggle. When true the execution engine skips this rule (no LLM call)
+   * and the card shows the "Out of scope" badge.
+   */
   is_out_of_scope?: boolean;
+  /**
+   * Auditor's manual out-of-scope toggle for THIS rule / sub-rule / sub-sub-rule.
+   * Persisted (the backend derives `manual_oos_rule_keys` from it) so the choice
+   * round-trips independently of the SOP-derived flag.
+   */
+  manual_out_of_scope?: boolean;
   condition: string;
   action: string;
   decision_type: string;

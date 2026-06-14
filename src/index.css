@@ -333,3 +333,10 @@
 .exec-toolbar-enter {
   animation: exec-slide-up 0.3s ease-out forwards;
 }
+
+/* Indeterminate progress bar (workflow save overlay) */
+@keyframes wf-indeterminate {
+  0%   { transform: translateX(-120%); }
+  50%  { transform: translateX(120%); }
+  100% { transform: translateX(320%); }
+}

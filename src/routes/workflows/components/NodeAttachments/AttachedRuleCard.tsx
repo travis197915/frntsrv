@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
 import AdditionalContextDialog from "./AdditionalContextDialog";
@@ -11,6 +11,8 @@ interface AttachedRuleCardProps {
   onMoveDown?: () => void;
   /** Persist a new value of `rule.additional_context` for this rule. */
   onContextChange?: (key: string, context: string) => void;
+  /** Toggle the manual out-of-scope flag for this rule / sub-rule / sub-sub-rule. */
+  onToggleOutOfScope?: (key: string, next: boolean) => void;
   /** Open the inline form to add a sub-rule nested under this rule. */
   onAddSubRule?: (parentKey: string) => void;
   readOnly?: boolean;
@@ -28,6 +30,7 @@ export default function AttachedRuleCard({
   onMoveUp,
   onMoveDown,
   onContextChange,
+  onToggleOutOfScope,
   onAddSubRule,
   readOnly = false,
   depth = 0,
@@ -37,7 +40,8 @@ export default function AttachedRuleCard({
   const [showCtx, setShowCtx] = useState(false);
   const [ctxDialog, setCtxDialog] = useState(false);
   const hasContext = !!(rule.additional_context ?? "").trim();
-  const outOfScope = !!rule.is_out_of_scope;
+  const manualOos = !!rule.manual_out_of_scope;
+  const outOfScope = !!rule.is_out_of_scope || manualOos;
   return (
     <li
       style={{ marginLeft: depth > 0 ? depth * 16 : undefined }}
@@ -130,6 +134,22 @@ export default function AttachedRuleCard({
           )}
         </div>
         <div className="flex flex-col items-center gap-1 shrink-0">
+          {onToggleOutOfScope && (
+            <button
+              type="button"
+              onClick={() => onToggleOutOfScope(rule.key, !manualOos)}
+              aria-pressed={manualOos}
+              className={`h-5 w-5 flex items-center justify-center rounded ${
+                manualOos
+                  ? "text-rose-600 bg-rose-100 hover:bg-rose-200"
+                  : "text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
+              }`}
+              aria-label={manualOos ? "Clear out of scope" : "Mark out of scope"}
+              title={manualOos ? "Clear out of scope" : "Mark this rule out of scope"}
+            >
+              <Ban className="h-3 w-3" />
+            </button>
+          )}
           {onRemove && (
             <button
               type="button"
