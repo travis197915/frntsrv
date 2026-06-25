@@ -11,7 +11,13 @@ import { SidebarNavItem } from './SidebarNavItem';
 import type { NavItem } from '@/lib/api';
 
 /** Temporary allow-list — expand when Agents, Activity, AI Usage launch. */
-const VISIBLE_NAV_SLUGS = new Set(['workflows', 'users', 'settings']);
+const VISIBLE_NAV_SLUGS = new Set([
+  'workflows',
+  'users',
+  'settings',
+  'field-mapping',
+  'claim-ontology',
+]);
 
 /** Resolve a lucide icon name to a component, falling back to `Circle`. */
 function lookupIcon(name: string): typeof Icons.Circle {

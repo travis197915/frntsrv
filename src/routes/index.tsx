@@ -9,6 +9,8 @@ import WorkflowBuilderPage from "@/routes/workflows/[id]";
 import SettingsPage from "@/routes/settings";
 import UsersListPage from "@/routes/users";
 import UserDetailPage from "@/routes/users/[id]";
+import FieldMappingPage from "@/routes/config/field-mapping";
+import ClaimOntologyPage from "@/routes/config/claim-ontology";
 import NotFound from "@/components/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UnauthorizedPage from "@/routes/unauthorized/UnauthorizedPage";
@@ -35,6 +37,8 @@ export default function AppRoutes() {
         <Route path="/ai-usage" element={<AIUsagePage />} />
         */}
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/config/field-mapping" element={<FieldMappingPage />} />
+        <Route path="/config/claim-ontology" element={<ClaimOntologyPage />} />
         <Route path="/users" element={<UsersListPage />} />
         <Route path="/users/:id" element={<UserDetailPage />} />
       </Route>

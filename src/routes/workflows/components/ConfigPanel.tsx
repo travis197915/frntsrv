@@ -470,7 +470,7 @@ function RulesOnlyPanel({
           workflowId={workflowId}
           selectedKeys={selectedKeys}
           existingRules={rules}
-          readOnly={readOnly}
+            readOnly={readOnly}
           onClose={() => setPickerOpen(false)}
           onSave={(r, t) => onChange(r, t)}
         />
@@ -549,7 +549,7 @@ function OverviewTab({ node, def, onUpdate, readOnly, manualOos, props }: {
             </div>
           </div>
         ) : null}
-      </div>
+            </div>
 
       {/* Execution control */}
       {!isWorkArea && (
@@ -1190,11 +1190,11 @@ export default function ConfigPanel({
           {activeTab === "rules" && (
             <div className="flex flex-col overflow-hidden h-full">
               <RulesOnlyPanel
-                workflowId={workflowId}
-                rules={attachedRules}
-                tools={attachedTools}
-                onChange={setAttachments}
-                readOnly={readOnly}
+              workflowId={workflowId}
+              rules={attachedRules}
+              tools={attachedTools}
+              onChange={setAttachments}
+              readOnly={readOnly}
                 isWorkArea={isWorkArea}
               />
             </div>
@@ -1224,11 +1224,11 @@ export default function ConfigPanel({
               stepNumber={stepNumber}
               nodeKind={typeof props.kind === "string" ? props.kind : undefined}
             />
-          )}
-        </div>
+        )}
+      </div>
 
         {/* ── Footer ───────────────────────────────────────────────────── */}
-        {!readOnly && (
+      {!readOnly && (
           <div className="flex-none flex items-center justify-between px-6 py-3 border-t border-border bg-muted/20">
             <Button variant="ghost" size="sm" onClick={() => onDelete(node.id)}
               className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5">
@@ -1237,8 +1237,8 @@ export default function ConfigPanel({
             </Button>
             <div className="flex items-center gap-2">
               {onSave && (
-                <Button
-                  size="sm"
+          <Button
+            size="sm"
                   onClick={() => onSave()}
                   disabled={isSaving || !isDirty}
                   title={isDirty ? "Save all changes" : "No changes to save"}
@@ -1250,10 +1250,10 @@ export default function ConfigPanel({
               )}
               <Button variant={onSave ? "outline" : "default"} size="sm" onClick={onClose}>
                 Done
-              </Button>
+          </Button>
             </div>
-          </div>
-        )}
+        </div>
+      )}
       </DialogContent>
     </Dialog>
   );
