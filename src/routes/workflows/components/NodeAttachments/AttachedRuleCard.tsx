@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban, Eye } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
 import AdditionalContextDialog from "./AdditionalContextDialog";
@@ -40,8 +40,10 @@ export default function AttachedRuleCard({
   const [showCtx, setShowCtx] = useState(false);
   const [ctxDialog, setCtxDialog] = useState(false);
   const hasContext = !!(rule.additional_context ?? "").trim();
-  const manualOos = !!rule.manual_out_of_scope;
-  const outOfScope = !!rule.is_out_of_scope || manualOos;
+  // `is_out_of_scope` is the effective flag the backend recomputes (SOP-derived
+  // OR manual, minus any force-in-scope override). Drive the UI off it so an
+  // ingestion-flagged out-of-scope rule can be toggled back into scope too.
+  const outOfScope = !!rule.is_out_of_scope;
   return (
     <li
       style={{ marginLeft: depth > 0 ? depth * 16 : undefined }}
@@ -133,74 +135,89 @@ export default function AttachedRuleCard({
             </>
           )}
         </div>
-        <div className="flex flex-col items-center gap-1 shrink-0">
+      </div>
+
+      {/* Labeled action bar — explicit buttons instead of tiny icons */}
+      {(onToggleOutOfScope || onRemove || onAddSubRule || onContextChange || hasContext) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {onToggleOutOfScope && (
             <button
               type="button"
-              onClick={() => onToggleOutOfScope(rule.key, !manualOos)}
-              aria-pressed={manualOos}
-              className={`h-5 w-5 flex items-center justify-center rounded ${
-                manualOos
-                  ? "text-rose-600 bg-rose-100 hover:bg-rose-200"
-                  : "text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
+              onClick={() => onToggleOutOfScope(rule.key, !outOfScope)}
+              aria-pressed={outOfScope}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${
+                outOfScope
+                  ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  : "border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
               }`}
-              aria-label={manualOos ? "Clear out of scope" : "Mark out of scope"}
-              title={manualOos ? "Clear out of scope" : "Mark this rule out of scope"}
+              title={
+                outOfScope
+                  ? "Bring this rule back in scope (overrides the SOP flag)"
+                  : "Mark this rule out of scope"
+              }
             >
-              <Ban className="h-3 w-3" />
-            </button>
-          )}
-          {onRemove && (
-            <button
-              type="button"
-              onClick={() => onRemove(rule.key)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-              aria-label="Exclude rule"
-              title="Exclude rule"
-            >
-              <X className="h-3 w-3" />
+              {outOfScope ? (
+                <>
+                  <Eye className="h-3 w-3" />
+                  Mark in scope
+                </>
+              ) : (
+                <>
+                  <Ban className="h-3 w-3" />
+                  Mark out of scope
+                </>
+              )}
             </button>
           )}
           {onAddSubRule && (
             <button
               type="button"
               onClick={() => onAddSubRule(rule.key)}
-              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50"
-              aria-label="Add sub-rule"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 text-[11px] font-medium transition-colors"
               title="Add a sub-rule under this rule"
             >
               <ListPlus className="h-3 w-3" />
+              Add sub-rule
             </button>
           )}
           {(onContextChange || hasContext) && (
             <button
               type="button"
               onClick={() => setCtxDialog(true)}
-              className={`relative h-5 w-5 flex items-center justify-center rounded ${
+              className={`relative inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${
                 hasContext
-                  ? "text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
-              aria-label={
-                hasContext ? "Edit additional context" : "Add additional context"
-              }
               title={
                 hasContext
-                  ? "Edit additional context"
+                  ? "Edit additional context for the agent"
                   : "Add additional context for the agent"
               }
             >
               <NotebookPen className="h-3 w-3" />
+              {hasContext ? "Edit context" : "Add context"}
               {hasContext && (
                 <span
-                  className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500"
+                  className="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-500"
                   aria-hidden="true"
                 />
               )}
             </button>
           )}
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(rule.key)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 text-[11px] font-medium transition-colors ml-auto"
+              title="Exclude (remove) this rule from the node"
+            >
+              <X className="h-3 w-3" />
+              Exclude rule
+            </button>
+          )}
         </div>
-      </div>
+      )}
 
       <AdditionalContextDialog
         open={ctxDialog}

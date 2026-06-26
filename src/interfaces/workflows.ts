@@ -135,6 +135,14 @@ export interface AttachedSopRule {
    * round-trips independently of the SOP-derived flag.
    */
   manual_out_of_scope?: boolean;
+  /**
+   * Auditor's manual "force IN scope" override for THIS rule. When true it
+   * OVERRIDES a SOP-derived (or node-level) out-of-scope flag so the rule is
+   * evaluated again. Persisted via `manual_in_scope_rule_keys` so it round-trips
+   * and is honored by the execution engine. Mutually exclusive with
+   * `manual_out_of_scope`.
+   */
+  manual_in_scope?: boolean;
   condition: string;
   action: string;
   decision_type: string;

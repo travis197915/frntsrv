@@ -318,15 +318,22 @@ function RulesOnlyPanel({
     if (readOnly) return;
     onChange(rules.map((r) => r.key === key ? { ...r, additional_context: context } : r), tools);
   };
-  const toggleRuleOos = (key: string, next: boolean) => {
+  const toggleRuleOos = (key: string, nextOos: boolean) => {
     if (readOnly) return;
-    // Only the manual flag is auditor-controlled; the effective `is_out_of_scope`
-    // is recomputed by the backend (SOP OR manual) on the next load. We OR it in
-    // locally so the badge updates immediately.
+    // `nextOos` is the auditor's desired EFFECTIVE scope for this rule. We store
+    // it as two mutually-exclusive override flags so the backend can either add
+    // OOS (`manual_out_of_scope`) or FORCE a SOP-flagged rule back in scope
+    // (`manual_in_scope`). The effective `is_out_of_scope` is recomputed on the
+    // next load; we set it locally so the badge updates immediately.
     onChange(
       rules.map((r) =>
         r.key === key
-          ? { ...r, manual_out_of_scope: next, is_out_of_scope: next || !!r.is_out_of_scope }
+          ? {
+              ...r,
+              manual_out_of_scope: nextOos,
+              manual_in_scope: !nextOos,
+              is_out_of_scope: nextOos,
+            }
           : r,
       ),
       tools,
