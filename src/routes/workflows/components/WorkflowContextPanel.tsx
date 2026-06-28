@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FileText,
   Globe,
@@ -8,6 +8,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ListOrdered,
   Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import {
   workflowsApi,
   type RuntimeAgentInput,
+  type SopColumn,
   type WorkflowAgent,
   type WorkflowSop,
 } from '@/lib/workflowsApi';
@@ -36,6 +40,9 @@ interface WorkflowContextPanelProps {
   /** Fired right after a SOP ingestion is dispatched so the parent can switch
    *  to the live build-progress (SSE) screen. */
   onIngestStarted?: () => void;
+  /** Force a full canvas reload (e.g. after reordering SOP columns, whose new
+   *  positions must be re-pulled from the server). */
+  onCanvasReload?: () => void;
 }
 
 const STATUS_STYLES: Record<string, { label: string; icon: typeof Clock; tone: string }> = {
@@ -162,6 +169,7 @@ export default function WorkflowContextPanel({
   autoBuilt = false,
   onAttached,
   onIngestStarted,
+  onCanvasReload,
 }: WorkflowContextPanelProps) {
   const [adding, setAdding] = useState<'sop' | 'agent' | null>(null);
   const [graphSop, setGraphSop] = useState<WorkflowSop | null>(null);
@@ -289,6 +297,13 @@ export default function WorkflowContextPanel({
         )}
       </section>
 
+      {/* ── SOP run order ──────────────────────────────────────────────── */}
+      <SopOrderSection
+        workflowId={workflowId}
+        sopCount={sops.length}
+        onReordered={onCanvasReload ?? onAttached}
+      />
+
       {/* ── Runtime Agents ─────────────────────────────────────────────── */}
       <section className="p-4">
         <div className="flex items-center justify-between mb-2">
@@ -406,6 +421,162 @@ export default function WorkflowContextPanel({
       />
     </aside>
   );
+}
+
+function SopOrderSection({
+  workflowId,
+  sopCount,
+  onReordered,
+}: {
+  workflowId: string;
+  sopCount: number;
+  onReordered: () => void;
+}) {
+  const [columns, setColumns] = useState<SopColumn[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    [],
+  );
+
+  const load = useCallback(() => {
+    if (!workflowId) return;
+    workflowsApi
+      .sopColumns(workflowId)
+      .then(setColumns)
+      .catch(() => setColumns([]));
+  }, [workflowId]);
+
+  // (Re)load the columns whenever the SOP set changes (e.g. after a new build).
+  useEffect(() => {
+    load();
+  }, [load, sopCount]);
+
+  const move = useCallback(
+    async (index: number, dir: -1 | 1) => {
+      if (!columns) return;
+      const target = index + dir;
+      if (target < 0 || target >= columns.length) return;
+      const next = [...columns];
+      [next[index], next[target]] = [next[target], next[index]];
+      setColumns(next); // optimistic
+      setBusy(true);
+      setError(null);
+      try {
+        // Auto-save: persist the new order immediately on every move.
+        const result = await workflowsApi.reorderSops(
+          workflowId,
+          next.map((c) => c.workbench_id),
+        );
+        setColumns(result);
+        onReordered(); // refresh the canvas to reflect the new column order
+        setSaved(true);
+        if (savedTimer.current) clearTimeout(savedTimer.current);
+        savedTimer.current = setTimeout(() => setSaved(false), 2500);
+      } catch {
+        setError('Failed to reorder. Please try again.');
+        load(); // revert to server truth
+      } finally {
+        setBusy(false);
+      }
+    },
+    [columns, workflowId, onReordered, load],
+  );
+
+  if (!columns || columns.length < 2) return null;
+
+  return (
+    <section className="p-4 border-b border-border">
+      <div className="flex items-center gap-2 mb-1.5">
+        <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          SOP Run Order
+        </h3>
+        {busy && (
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground mb-2 leading-snug">
+        Reorder the SOP columns left-to-right. This also sets the order the SOPs
+        run at execution time.
+      </p>
+      <ol className="space-y-1.5">
+        {columns.map((col, i) => (
+          <li
+            key={col.workbench_id}
+            className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5"
+          >
+            <span className="w-4 text-center text-[10px] font-mono tabular-nums text-muted-foreground">
+              {i + 1}
+            </span>
+            <span
+              className="flex-1 min-w-0 truncate text-xs"
+              title={prettifySopName(col)}
+            >
+              {prettifySopName(col)}
+            </span>
+            <span
+              className="text-[10px] text-muted-foreground tabular-nums"
+              title={`${col.shape_count} steps`}
+            >
+              {col.shape_count}
+            </span>
+            <div className="flex flex-col">
+              <button
+                type="button"
+                disabled={busy || i === 0}
+                onClick={() => void move(i, -1)}
+                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+                title="Move up"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={busy || i === columns.length - 1}
+                onClick={() => void move(i, 1)}
+                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+                title="Move down"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {error && <p className="mt-2 text-[10px] text-red-500">{error}</p>}
+
+      {saved && (
+        <div
+          role="status"
+          className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 shadow-lg dark:bg-emerald-950/90 dark:text-emerald-300"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          SOP run order saved
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Human-readable SOP label: strips the upload-hash prefix, order number,
+ *  file extension, and the `· file://…` source-ref tail that workbench names
+ *  carry, then turns underscores into spaces. */
+function prettifySopName(col: SopColumn): string {
+  let s = (col.sop_title || col.name || '').split('  ·  ')[0];
+  s = s
+    .replace(/^\s*\d+\.\s*/, '')           // leading "N. " order prefix
+    .replace(/^[0-9a-f]{32}_/i, '')        // upload-hash prefix
+    .replace(/\.(pdf|docx?|xlsx?|html?|txt)$/i, '') // file extension
+    .replace(/_/g, ' ')
+    .trim();
+  return s || col.name || col.workbench_id;
 }
 
 function shortenUrl(url: string): string {

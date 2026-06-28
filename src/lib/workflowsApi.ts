@@ -23,6 +23,8 @@ import type {
   BuildStatusLog,
   NodeMeta,
   RuntimeAgentInput,
+  ToolAnalyzeResponse,
+  ToolContextResponse,
   ToolInvokeResponse,
   ToolRegistryEntry,
   WorkflowAttachable,
@@ -37,6 +39,10 @@ export type {
   BuildStatus,
   NodeMeta,
   RuntimeAgentInput,
+  ToolAnalyzeResponse,
+  ToolContext,
+  ToolContextField,
+  ToolContextResponse,
   ToolInvokeResponse,
   ToolRegistryEntry,
   WorkflowAgent,
@@ -53,6 +59,19 @@ export type {
   BuilderWorkArea,
   BuilderWorkbench,
 } from "../interfaces/builder";
+
+// ── Public types ───────────────────────────────────────────────────────────
+
+/** One SOP column (Workbench) in a workflow, used by the reorder UI. */
+export interface SopColumn {
+  workbench_id: string;
+  name: string;
+  kind: string;
+  sop_id: number | null;
+  sop_title: string;
+  order: number;
+  shape_count: number;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -138,26 +157,24 @@ function buildGraphPayload(allNodes: FlatNode[], _edges: FlatEdge[]) {
     (n) => (n as unknown as { type: string }).type !== "workarea",
   );
 
-  // All shapes are sent in a SINGLE work_area / workbench entry.
+  // Preserve the per-SOP workbench structure on save.
   //
-  // Why: the previous multi-group approach split fresh nodes (no workAreaId)
-  // into a separate "Canvas" group that Django matched by *name* rather than
-  // UUID. Because the existing work_area is also named "Canvas", Django ended
-  // up processing the same work_area twice — the second pass overwrote the
-  // workbenches from the first pass, deleting the previously-saved shapes.
+  // Each SOP is its own Workbench column; the execution engine evaluates SOPs
+  // in `Workbench.order`. `flatten()` tags every persisted node with its
+  // `workbenchId` / `workAreaId`, so we re-group nodes by `workbenchId` and
+  // send one workbench entry per group, matched by UUID. Django matches
+  // workbenches by id (not name), so this updates each column in place and no
+  // longer collapses all SOPs into a single "Default" workbench (which used to
+  // destroy the SOP column order — and thus the execution order — on save).
   //
-  // Resolution: look for the canonical IDs from any node that was already
-  // persisted (workAreaId / workbenchId set by `flatten()` on GET).  When
-  // found, send `{ id }` so Django updates in place.  For a brand-new canvas
-  // that has never been saved, fall back to `client_id` so Django creates it.
+  // Group iteration order follows first-encounter, which mirrors the
+  // `Workbench.order` returned by GET, so the SOP column / execution order
+  // survives a save.
   const savedNode = nodes.find((n) => n.data.workAreaId);
   const workAreaId = savedNode?.data.workAreaId;
-  const workbenchId = savedNode?.data.workbenchId;
 
-  const shapes = nodes.map((n, i) => ({
-    ...(n.id && n.id.length === 36
-      ? { id: n.id }
-      : { client_id: n.id }),
+  const toShape = (n: FlatNode, i: number) => ({
+    ...(n.id && n.id.length === 36 ? { id: n.id } : { client_id: n.id }),
     definition_slug: n.data.definitionSlug,
     label: n.data.label || "",
     description: n.data.description || "",
@@ -168,21 +185,41 @@ function buildGraphPayload(allNodes: FlatNode[], _edges: FlatEdge[]) {
     properties: n.data.properties ?? {},
     style: n.data.style ?? {},
     order: i,
-  }));
+  });
+
+  const NEW_GROUP = "__new__";
+  const groups = new Map<string, FlatNode[]>();
+  for (const n of nodes) {
+    const key = n.data.workbenchId || NEW_GROUP;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(n);
+    else groups.set(key, [n]);
+  }
+
+  // Freshly-dropped nodes (no workbenchId) join the first existing column when
+  // there is one; otherwise they form a single default workbench.
+  const existingKeys = [...groups.keys()].filter((k) => k !== NEW_GROUP);
+  if (groups.has(NEW_GROUP) && existingKeys.length > 0) {
+    const target = groups.get(existingKeys[0])!;
+    target.push(...groups.get(NEW_GROUP)!);
+    groups.delete(NEW_GROUP);
+  }
+
+  const workbenches = [...groups.entries()].map(([key, groupNodes], wi) => {
+    const isUuidKey = key !== NEW_GROUP && key.length === 36;
+    return {
+      ...(isUuidKey ? { id: key } : { client_id: `wb-${wi}` }),
+      ...(isUuidKey ? {} : { name: "Default" }),
+      order: wi,
+      shapes: groupNodes.map(toShape),
+    };
+  });
 
   const work_areas = [
     {
-      ...(workAreaId ? { id: workAreaId } : { client_id: "wa-default-0" }),
-      name: "Canvas",
+      ...(workAreaId ? { id: workAreaId } : { client_id: "wa-default-0", name: "Canvas" }),
       order: 0,
-      workbenches: [
-        {
-          ...(workbenchId ? { id: workbenchId } : { client_id: "wb-default" }),
-          name: "Default",
-          order: 0,
-          shapes,
-        },
-      ],
+      workbenches,
     },
   ];
 
@@ -469,6 +506,21 @@ export const workflowsApi = {
     return toDetail(graph);
   },
 
+  /** Ordered SOP columns (workbenches) of a workflow. */
+  async sopColumns(id: string): Promise<SopColumn[]> {
+    return builderClient.get<SopColumn[]>(`/workflows/${id}/sop-order/`);
+  },
+
+  /**
+   * Reorder the SOP columns. `order` is the workbench-id sequence in the new
+   * left-to-right / execution order. Returns the resulting columns.
+   */
+  async reorderSops(id: string, order: string[]): Promise<SopColumn[]> {
+    return builderClient.put<SopColumn[]>(`/workflows/${id}/sop-order/`, {
+      order,
+    });
+  },
+
   async remove(id: string): Promise<void> {
     await builderClient.delete(`/workflows/${id}/`);
   },
@@ -521,6 +573,27 @@ export const toolRegistryApi = {
     return toolsClient.post<ToolInvokeResponse>(
       `/${encodeURIComponent(name)}/invoke`,
       { args },
+    );
+  },
+
+  /** Cached LLM understanding of the tool's response (null when never run). */
+  async context(name: string): Promise<ToolContextResponse> {
+    return toolsClient.get<ToolContextResponse>(
+      `/${encodeURIComponent(name)}/context`,
+    );
+  },
+
+  /**
+   * Send a response payload (or args to fetch one) to the LLM, derive a
+   * field-level understanding, and persist it to the context store.
+   */
+  async analyze(
+    name: string,
+    body: { result?: unknown; args?: Record<string, unknown> },
+  ): Promise<ToolAnalyzeResponse> {
+    return toolsClient.post<ToolAnalyzeResponse>(
+      `/${encodeURIComponent(name)}/analyze`,
+      body,
     );
   },
 };

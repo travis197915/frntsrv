@@ -11,6 +11,8 @@ import UsersListPage from "@/routes/users";
 import UserDetailPage from "@/routes/users/[id]";
 import FieldMappingPage from "@/routes/config/field-mapping";
 import ClaimOntologyPage from "@/routes/config/claim-ontology";
+import McpServersPage from "@/routes/config/mcp-servers";
+import ToolCallsPage from "@/routes/config/tool-calls";
 import NotFound from "@/components/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UnauthorizedPage from "@/routes/unauthorized/UnauthorizedPage";
@@ -39,6 +41,8 @@ export default function AppRoutes() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/config/field-mapping" element={<FieldMappingPage />} />
         <Route path="/config/claim-ontology" element={<ClaimOntologyPage />} />
+        <Route path="/config/mcp-servers" element={<McpServersPage />} />
+        <Route path="/config/tool-calls" element={<ToolCallsPage />} />
         <Route path="/users" element={<UsersListPage />} />
         <Route path="/users/:id" element={<UserDetailPage />} />
       </Route>

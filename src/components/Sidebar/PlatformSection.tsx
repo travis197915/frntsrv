@@ -17,6 +17,8 @@ const VISIBLE_NAV_SLUGS = new Set([
   'settings',
   'field-mapping',
   'claim-ontology',
+  'mcp-servers',
+  'tool-calls',
 ]);
 
 /** Resolve a lucide icon name to a component, falling back to `Circle`. */

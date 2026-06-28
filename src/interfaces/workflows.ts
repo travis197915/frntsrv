@@ -300,3 +300,45 @@ export interface ToolInvokeResponse {
   result?: unknown;
   error?: string;
 }
+
+/** One field documented by the LLM understanding of a tool response. */
+export interface ToolContextField {
+  name: string;
+  path: string;
+  type: string;
+  example: unknown;
+  description: string;
+}
+
+/** LLM-derived understanding of what an MCP tool returns (context store). */
+export interface ToolContext {
+  id: string;
+  tool: string;
+  tool_name: string;
+  server: string | null;
+  mcp_path: string;
+  summary: string;
+  fields: ToolContextField[];
+  sample_response: unknown;
+  record_count: number | null;
+  truncated: boolean;
+  llm_provider: string;
+  llm_model: string;
+  analyzed_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ToolAnalyzeResponse {
+  ok: boolean;
+  tool: string;
+  context?: ToolContext;
+  error?: string;
+}
+
+export interface ToolContextResponse {
+  ok: boolean;
+  tool: string;
+  context: ToolContext | null;
+  error?: string;
+}

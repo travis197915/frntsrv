@@ -14,7 +14,7 @@
  *   - ConfigPanel  → optional per-binding invoke shortcut.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Play, RotateCcw } from 'lucide-react';
+import { Loader2, Play, RotateCcw, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -27,9 +27,12 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import JsonTree from '@/components/JsonTree';
+import ToolContextPanel from '@/components/ToolContextPanel';
 
 import {
   toolRegistryApi,
+  type ToolContext,
   type ToolInvokeResponse,
   type ToolRegistryEntry,
 } from '@/lib/workflowsApi';
@@ -94,17 +97,58 @@ export default function ToolInvokeModal({
   const [running, setRunning] = useState(false);
   const [response, setResponse] = useState<ToolInvokeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<ToolContext | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [contextError, setContextError] = useState<string | null>(null);
 
   useEffect(() => {
     setArgsText(JSON.stringify(seed, null, 2));
     setResponse(null);
     setError(null);
+    setContext(null);
+    setContextError(null);
   }, [seed, open]);
 
+  // Load any previously-cached understanding when the modal opens.
+  useEffect(() => {
+    if (!open || !tool) return;
+    let cancelled = false;
+    toolRegistryApi
+      .context(tool.name)
+      .then((resp) => {
+        if (!cancelled) setContext(resp.context);
+      })
+      .catch(() => {
+        /* no cached context yet — silent */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tool]);
+
   if (!tool) return null;
+  const activeTool = tool;
+
+  const analyze = async (result: unknown) => {
+    setContextError(null);
+    setAnalyzing(true);
+    try {
+      const resp = await toolRegistryApi.analyze(activeTool.name, { result });
+      if (resp.ok && resp.context) {
+        setContext(resp.context);
+      } else if (resp.error) {
+        setContextError(resp.error);
+      }
+    } catch (err) {
+      setContextError((err as Error).message || 'Analysis failed');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const run = async () => {
     setError(null);
+    setContextError(null);
     setRunning(true);
     let parsed: Record<string, unknown>;
     try {
@@ -115,8 +159,12 @@ export default function ToolInvokeModal({
       return;
     }
     try {
-      const resp = await toolRegistryApi.invoke(tool.name, parsed);
+      const resp = await toolRegistryApi.invoke(activeTool.name, parsed);
       setResponse(resp);
+      // Understand the payload with the LLM + persist to the context store.
+      if (resp.ok && resp.result !== undefined) {
+        void analyze(resp.result);
+      }
     } catch (err) {
       setError((err as Error).message || 'Invocation failed');
     } finally {
@@ -128,11 +176,12 @@ export default function ToolInvokeModal({
     setArgsText(JSON.stringify(seed, null, 2));
     setResponse(null);
     setError(null);
+    setContextError(null);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{tool.display_name || tool.name}</span>
@@ -162,14 +211,20 @@ export default function ToolInvokeModal({
             </div>
           )}
 
+          {(analyzing || context || contextError) && (
+            <ToolContextPanel
+              context={context}
+              loading={analyzing}
+              error={contextError}
+            />
+          )}
+
           {response && (
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Response{response.ok ? '' : ' (error)'}
               </label>
-              <pre className="mt-1 max-h-72 overflow-auto rounded border border-border bg-muted/30 p-3 text-[11px] leading-relaxed">
-                {JSON.stringify(response.result ?? response, null, 2)}
-              </pre>
+              <JsonTree className="mt-1" data={response.result ?? response} />
             </div>
           )}
         </div>
@@ -178,6 +233,20 @@ export default function ToolInvokeModal({
           <Button variant="ghost" onClick={reset} disabled={running}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
           </Button>
+          {response?.ok && response.result !== undefined && (
+            <Button
+              variant="outline"
+              onClick={() => analyze(response.result)}
+              disabled={running || analyzing}
+            >
+              {analyzing ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+              )}
+              Re-analyze
+            </Button>
+          )}
           <Button onClick={run} disabled={running}>
             {running ? (
               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />

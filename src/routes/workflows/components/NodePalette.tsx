@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Loader2, Wrench } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 import { Separator } from '@/components/ui/separator';
@@ -6,7 +6,6 @@ import SearchInput from '@/components/SearchInput';
 import type { ShapeDefinition } from '@/lib/api';
 
 import { useShapeCatalog } from './nodes/ShapeCatalogProvider';
-import ToolRegistryList from './ToolRegistryList';
 import { detectShapeType, SHAPE_FRIENDLY_NAMES, type ShapeVariant as ShapeType } from '@/utils/shapeUtils';
 
 const DRAG_PREFIX = 'shape:';
@@ -122,7 +121,6 @@ interface NodePaletteProps {
 export default function NodePalette({ readOnly = false }: NodePaletteProps) {
   const { categories, loading, error } = useShapeCatalog();
   const [query, setQuery] = useState('');
-  const [toolsOpen, setToolsOpen] = useState(true);
 
   const deduplicatedCategories = useMemo(() =>
     categories.map((cat) => {
@@ -202,32 +200,6 @@ export default function NodePalette({ readOnly = false }: NodePaletteProps) {
             </section>
           ))
         )}
-
-        <Separator />
-
-        <section className="flex flex-col min-h-0">
-          <button
-            type="button"
-            onClick={() => setToolsOpen((v) => !v)}
-            className="flex items-center gap-2 px-0.5 pb-2 text-left w-full group/toggle"
-            aria-expanded={toolsOpen}
-          >
-            <Wrench className="h-3 w-3 text-muted-foreground/60" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 group-hover/toggle:text-muted-foreground transition-colors">
-              Tools
-            </span>
-            {toolsOpen ? (
-              <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground/40" />
-            ) : (
-              <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/40" />
-            )}
-          </button>
-          {toolsOpen && (
-            <div className="max-h-[40vh] flex flex-col min-h-0">
-              <ToolRegistryList hideHeading />
-            </div>
-          )}
-        </section>
       </div>
     </aside>
   );

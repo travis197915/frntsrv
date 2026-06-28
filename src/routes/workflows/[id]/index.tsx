@@ -807,6 +807,7 @@ function WorkflowBuilderInner() {
                   )}
                   onAttached={refetchWorkflow}
                   onIngestStarted={refreshBuildStatus}
+                  onCanvasReload={handleBuildComplete}
                 />
               ) : null}
             </ResizablePanel>
