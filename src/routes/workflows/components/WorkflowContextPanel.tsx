@@ -11,12 +11,16 @@ import {
   ChevronUp,
   ChevronDown,
   ListOrdered,
+  Split,
+  ArrowDownUp,
   Clock,
+  GitCompare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   workflowsApi,
+  type ExecutionMode,
   type RuntimeAgentInput,
   type SopColumn,
   type WorkflowAgent,
@@ -24,6 +28,7 @@ import {
 } from '@/lib/workflowsApi';
 import SopGraphDialog from './SopGraphDialog';
 import AddSopsDialog from './AddSopsDialog';
+import SopReconcileDialog from './SopReconcileDialog';
 import { cn } from '@/utils/utils';
 
 type SopTab = 'queued' | 'completed' | 'failed';
@@ -43,6 +48,9 @@ interface WorkflowContextPanelProps {
   /** Force a full canvas reload (e.g. after reordering SOP columns, whose new
    *  positions must be re-pulled from the server). */
   onCanvasReload?: () => void;
+  /** When set, the SOP Execution panel auto-expands that workbench's context
+   *  editor (e.g. after clicking its lane on the canvas). */
+  focusWorkbenchId?: string | null;
 }
 
 const STATUS_STYLES: Record<string, { label: string; icon: typeof Clock; tone: string }> = {
@@ -170,6 +178,7 @@ export default function WorkflowContextPanel({
   onAttached,
   onIngestStarted,
   onCanvasReload,
+  focusWorkbenchId,
 }: WorkflowContextPanelProps) {
   const [adding, setAdding] = useState<'sop' | 'agent' | null>(null);
   const [graphSop, setGraphSop] = useState<WorkflowSop | null>(null);
@@ -297,11 +306,12 @@ export default function WorkflowContextPanel({
         )}
       </section>
 
-      {/* ── SOP run order ──────────────────────────────────────────────── */}
-      <SopOrderSection
+      {/* ── SOP execution (linear/parallel + run order) ────────────────── */}
+      <SopExecutionSection
         workflowId={workflowId}
         sopCount={sops.length}
         onReordered={onCanvasReload ?? onAttached}
+        focusWorkbenchId={focusWorkbenchId}
       />
 
       {/* ── Runtime Agents ─────────────────────────────────────────────── */}
@@ -423,19 +433,22 @@ export default function WorkflowContextPanel({
   );
 }
 
-function SopOrderSection({
+function SopExecutionSection({
   workflowId,
   sopCount,
   onReordered,
+  focusWorkbenchId,
 }: {
   workflowId: string;
   sopCount: number;
   onReordered: () => void;
+  focusWorkbenchId?: string | null;
 }) {
   const [columns, setColumns] = useState<SopColumn[] | null>(null);
+  const [mode, setMode] = useState<ExecutionMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -445,18 +458,54 @@ function SopOrderSection({
     [],
   );
 
+  const flashSaved = useCallback((msg: string) => {
+    setSavedMsg(msg);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSavedMsg(null), 2500);
+  }, []);
+
   const load = useCallback(() => {
     if (!workflowId) return;
     workflowsApi
       .sopColumns(workflowId)
       .then(setColumns)
       .catch(() => setColumns([]));
+    workflowsApi
+      .executionMode(workflowId)
+      .then((r) => setMode(r.mode))
+      .catch(() => setMode('linear'));
   }, [workflowId]);
 
-  // (Re)load the columns whenever the SOP set changes (e.g. after a new build).
+  // (Re)load whenever the SOP set changes (e.g. after a new build).
   useEffect(() => {
     load();
   }, [load, sopCount]);
+
+  const changeMode = useCallback(
+    async (next: ExecutionMode) => {
+      if (busy || next === mode) return;
+      setMode(next); // optimistic
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await workflowsApi.setExecutionMode(workflowId, next);
+        setMode(res.mode);
+        onReordered(); // canvas topology changed (Fork/Verdict nodes) — reload
+        load(); // refresh column positions
+        flashSaved(
+          next === 'parallel'
+            ? 'Switched to parallel execution'
+            : 'Switched to linear execution',
+        );
+      } catch {
+        setError('Failed to change execution mode. Please try again.');
+        load();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, mode, workflowId, onReordered, load, flashSaved],
+  );
 
   const move = useCallback(
     async (index: number, dir: -1 | 1) => {
@@ -476,9 +525,7 @@ function SopOrderSection({
         );
         setColumns(result);
         onReordered(); // refresh the canvas to reflect the new column order
-        setSaved(true);
-        if (savedTimer.current) clearTimeout(savedTimer.current);
-        savedTimer.current = setTimeout(() => setSaved(false), 2500);
+        flashSaved('SOP run order saved');
       } catch {
         setError('Failed to reorder. Please try again.');
         load(); // revert to server truth
@@ -486,82 +533,327 @@ function SopOrderSection({
         setBusy(false);
       }
     },
-    [columns, workflowId, onReordered, load],
+    [columns, workflowId, onReordered, load, flashSaved],
   );
 
-  if (!columns || columns.length < 2) return null;
+  // Need at least one SOP to show the section. The Linear/Parallel mode toggle
+  // and reorder controls only matter with 2+ columns; the per-SOP context
+  // editor is available for every SOP (including a single one).
+  if (!columns || columns.length < 1) return null;
+  const multi = columns.length >= 2;
 
   return (
     <section className="p-4 border-b border-border">
-      <div className="flex items-center gap-2 mb-1.5">
-        <ListOrdered className="h-3.5 w-3.5 text-muted-foreground" />
+      <div className="flex items-center gap-2 mb-2">
+        <Split className="h-3.5 w-3.5 text-muted-foreground" />
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          SOP Run Order
+          SOP Execution
         </h3>
         {busy && (
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground mb-2 leading-snug">
-        Reorder the SOP columns left-to-right. This also sets the order the SOPs
-        run at execution time.
-      </p>
-      <ol className="space-y-1.5">
+
+      {/* Linear / Parallel mode toggle (only meaningful with 2+ SOPs) */}
+      {multi && (
+        <div
+          role="tablist"
+          aria-label="Execution mode"
+          className="mb-2 flex rounded-lg bg-muted p-1 gap-0.5 dark:bg-zinc-900/80"
+        >
+          {(
+            [
+              { key: 'linear' as const, label: 'Linear', icon: ArrowDownUp },
+              { key: 'parallel' as const, label: 'Parallel', icon: Split },
+            ]
+          ).map(({ key, label, icon: Icon }) => {
+            const active = mode === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                disabled={busy}
+                onClick={() => void changeMode(key)}
+                className={cn(
+                  'flex-1 px-2 py-1.5 rounded-md inline-flex items-center justify-center gap-1.5 text-[11px] transition-all disabled:opacity-60',
+                  active
+                    ? 'bg-white text-foreground shadow-md ring-1 ring-black/5 dark:bg-zinc-600 dark:text-zinc-50 dark:ring-white/10'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {multi &&
+        (mode === 'parallel' ? (
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            All {columns.length} SOPs run independently from a{' '}
+            <span className="font-medium text-foreground">Parallel Split</span>{' '}
+            node. Each one is fused at the{' '}
+            <span className="font-medium text-foreground">Verdict</span> node —
+            the most severe disposition wins (a SOP defect no longer skips the
+            others).
+          </p>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <ListOrdered className="h-3 w-3 text-muted-foreground" />
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              SOPs run top-to-bottom in this order; the first defect stops the
+              rest. Reorder below — saved automatically.
+            </p>
+          </div>
+        ))}
+
+      {/* Per-SOP list: reorder controls (linear + 2+ SOPs) and a context editor
+          for every SOP. Click the document icon to add YAML/text guidance that
+          the engine injects into that SOP's rule evaluations at runtime. */}
+      <ol className="mt-2 space-y-1.5">
         {columns.map((col, i) => (
-          <li
+          <SopContextRow
             key={col.workbench_id}
-            className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5"
-          >
-            <span className="w-4 text-center text-[10px] font-mono tabular-nums text-muted-foreground">
-              {i + 1}
-            </span>
-            <span
-              className="flex-1 min-w-0 truncate text-xs"
-              title={prettifySopName(col)}
-            >
-              {prettifySopName(col)}
-            </span>
-            <span
-              className="text-[10px] text-muted-foreground tabular-nums"
-              title={`${col.shape_count} steps`}
-            >
-              {col.shape_count}
-            </span>
-            <div className="flex flex-col">
-              <button
-                type="button"
-                disabled={busy || i === 0}
-                onClick={() => void move(i, -1)}
-                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-                title="Move up"
-              >
-                <ChevronUp className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                disabled={busy || i === columns.length - 1}
-                onClick={() => void move(i, 1)}
-                className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-                title="Move down"
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </li>
+            col={col}
+            index={i}
+            total={columns.length}
+            busy={busy}
+            canReorder={multi && mode !== 'parallel'}
+            onMove={move}
+            defaultOpen={focusWorkbenchId === col.workbench_id}
+            onSaved={(msg) => {
+              flashSaved(msg);
+              load();
+            }}
+          />
         ))}
       </ol>
+
       {error && <p className="mt-2 text-[10px] text-red-500">{error}</p>}
 
-      {saved && (
+      {savedMsg && (
         <div
           role="status"
           className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 shadow-lg dark:bg-emerald-950/90 dark:text-emerald-300"
         >
           <CheckCircle2 className="h-4 w-4" />
-          SOP run order saved
+          {savedMsg}
         </div>
       )}
     </section>
+  );
+}
+
+/** One SOP row in the SOP Execution list: reorder controls (when enabled) and
+ *  an expandable editor for the SOP's extra context. The context is injected
+ *  verbatim into that SOP's rule-evaluation prompts at execution time. */
+function SopContextRow({
+  col,
+  index,
+  total,
+  busy,
+  canReorder,
+  defaultOpen,
+  onMove,
+  onSaved,
+}: {
+  col: SopColumn;
+  index: number;
+  total: number;
+  busy: boolean;
+  canReorder: boolean;
+  defaultOpen?: boolean;
+  onMove: (index: number, dir: -1 | 1) => void;
+  onSaved: (msg: string) => void;
+}) {
+  const [open, setOpen] = useState<boolean>(Boolean(defaultOpen));
+  const [draft, setDraft] = useState<string>(col.extra_context || '');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [version, setVersion] = useState<number | null>(null);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+
+  // Sync the draft with server truth when it changes and the user has no
+  // unsaved edits open (e.g. after a reload following a save elsewhere).
+  useEffect(() => {
+    if (!open) setDraft(col.extra_context || '');
+  }, [col.extra_context, open]);
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
+  // Lazily pull the SOP version so the badge reflects the latest reconcile.
+  useEffect(() => {
+    let alive = true;
+    if (col.sop_id == null) return;
+    workflowsApi
+      .sopVersion(col.workbench_id)
+      .then((r) => alive && setVersion(r.version))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [col.workbench_id, col.sop_id]);
+
+  const hasContext = Boolean((col.extra_context || '').trim());
+  const dirty = (draft || '').trim() !== (col.extra_context || '').trim();
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await workflowsApi.setWorkbenchContext(col.workbench_id, draft);
+      onSaved('SOP context saved');
+    } catch {
+      setSaveError('Failed to save context. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [col.workbench_id, draft, onSaved]);
+
+  return (
+    <li className="rounded-md border border-border bg-background">
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <span className="w-4 text-center text-[10px] font-mono tabular-nums text-muted-foreground">
+          {index + 1}
+        </span>
+        <span
+          className="flex-1 min-w-0 truncate text-xs"
+          title={prettifySopName(col)}
+        >
+          {prettifySopName(col)}
+        </span>
+        <span
+          className="text-[10px] text-muted-foreground tabular-nums"
+          title={`${col.shape_count} steps`}
+        >
+          {col.shape_count}
+        </span>
+        {version != null && (
+          <span
+            className="rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground"
+            title="SOP rule version"
+          >
+            v{version}
+          </span>
+        )}
+        {col.sop_id != null && (
+          <button
+            type="button"
+            onClick={() => setReconcileOpen(true)}
+            title="Compare this SOP with a YAML and reconcile rules"
+            className="inline-flex items-center text-muted-foreground transition-colors hover:text-primary"
+          >
+            <GitCompare className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          title={hasContext ? 'Edit SOP context' : 'Add SOP context'}
+          className={cn(
+            'inline-flex items-center transition-colors',
+            hasContext
+              ? 'text-emerald-600 hover:text-emerald-700 dark:text-emerald-400'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          <FileText className="h-3.5 w-3.5" />
+        </button>
+        {canReorder && (
+          <div className="flex flex-col">
+            <button
+              type="button"
+              disabled={busy || index === 0}
+              onClick={() => void onMove(index, -1)}
+              className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+              title="Move up"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={busy || index === total - 1}
+              onClick={() => void onMove(index, 1)}
+              className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+              title="Move down"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div className="border-t border-border px-2 py-2">
+          <label className="mb-1 block text-[10px] text-muted-foreground leading-snug">
+            Extra context for this SOP — paste YAML or notes. Injected verbatim
+            into every rule evaluation for this SOP at runtime so the engine
+            decides the correct verdict.
+          </label>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={8}
+            spellCheck={false}
+            placeholder={'# e.g. domain guidance, edge cases, code lists…'}
+            className="w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 font-mono text-[11px] leading-snug outline-none focus:ring-1 focus:ring-primary"
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-muted-foreground">
+              {hasContext
+                ? `${(col.extra_context || '').length} chars saved`
+                : 'No context yet'}
+            </span>
+            <div className="flex items-center gap-2">
+              {dirty && (
+                <button
+                  type="button"
+                  onClick={() => setDraft(col.extra_context || '')}
+                  disabled={saving}
+                  className="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => void save()}
+                disabled={saving || !dirty}
+                className="h-7 px-2.5 text-[11px]"
+              >
+                {saving ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  'Save context'
+                )}
+              </Button>
+            </div>
+          </div>
+          {saveError && (
+            <p className="mt-1 text-[10px] text-red-500">{saveError}</p>
+          )}
+        </div>
+      )}
+
+      <SopReconcileDialog
+        open={reconcileOpen}
+        workbenchId={col.workbench_id}
+        sopTitle={prettifySopName(col)}
+        currentVersion={version}
+        onClose={() => setReconcileOpen(false)}
+        onApplied={(newVersion) => {
+          setVersion(newVersion);
+          onSaved(`SOP rules updated — now v${newVersion}`);
+        }}
+      />
+    </li>
   );
 }
 

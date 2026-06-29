@@ -62,6 +62,12 @@ export type {
 
 // ── Public types ───────────────────────────────────────────────────────────
 
+export type ExecutionMode = 'linear' | 'parallel';
+
+export interface ExecutionModeResponse {
+  mode: ExecutionMode;
+}
+
 /** One SOP column (Workbench) in a workflow, used by the reorder UI. */
 export interface SopColumn {
   workbench_id: string;
@@ -71,6 +77,120 @@ export interface SopColumn {
   sop_title: string;
   order: number;
   shape_count: number;
+  /** Auditor-provided free-form context for this SOP, injected into the engine
+   *  at execution time (Workbench.config.extra_context). */
+  extra_context: string;
+}
+
+export interface WorkbenchContextResponse {
+  workbench_id: string;
+  extra_context: string;
+}
+
+// ── YAML ↔ DB rule reconciliation (SOP "version control") ───────────────────
+
+export type ReconcileVerdict =
+  | 'IDENTICAL'
+  | 'AUGMENT'
+  | 'CONTRADICT'
+  | 'NEW'
+  | 'MISSING';
+
+/** The reconcilable fields of one audit rule (AuditDecision). */
+export interface ReconcileRuleFields {
+  condition_if?: string;
+  condition_and?: string;
+  action_text?: string;
+  output_text?: string;
+  applicable_when?: string;
+  decision_type?: string;
+  is_out_of_scope?: boolean;
+  tooling_allowed?: boolean;
+}
+
+/** One row in the reconcile diff table: how a YAML rule relates to the DB. */
+export interface ReconcileFinding {
+  verdict: ReconcileVerdict;
+  rule_key: string | null;
+  decision_id: number | null;
+  subrule_id: string;
+  /** The id of the YAML rule that paired with this DB rule (content match). */
+  yaml_subrule_id?: string;
+  step_number: number | null;
+  step_rule_id?: string;
+  table_name: string;
+  revision: number;
+  reason: string;
+  current: ReconcileRuleFields | null;
+  incoming: ReconcileRuleFields | null;
+  proposed: ReconcileRuleFields;
+  fields_changed: string[];
+}
+
+export interface ReconcileAnalyzeResponse {
+  reconcile_id: string;
+  sop_id: number;
+  sop_title: string;
+  sop_version: number;
+  source: string;
+  counts: Partial<Record<ReconcileVerdict, number>>;
+  findings: ReconcileFinding[];
+  analyzed_at: string;
+}
+
+export interface ReconcileApplyResponse {
+  sop_id: number;
+  version: number;
+  batch_id: string;
+  applied: {
+    rule_key: string;
+    decision_id: number;
+    verdict: string;
+    fields_changed: string[];
+    revision: number;
+  }[];
+  skipped: { rule_key?: string; subrule_id?: string; reason: string }[];
+  log_count: number;
+}
+
+/** Returned immediately when an analyze job is enqueued on Celery. */
+export interface ReconcileJobStart {
+  job_id: string;
+  state: string;
+  sop_id: number;
+}
+
+/** Poll response for a queued analyze job. */
+export interface ReconcileStatusResponse {
+  job_id: string;
+  state: 'PENDING' | 'PROGRESS' | 'SUCCESS' | 'FAILURE' | string;
+  processed?: number;
+  total?: number;
+  phase?: string;
+  result?: ReconcileAnalyzeResponse;
+  error?: string;
+  error_kind?: string;
+}
+
+export interface SopVersionChange {
+  rule_key: string;
+  subrule_id: string;
+  step_number: number;
+  verdict: string;
+  reason: string;
+  fields_changed: string[];
+  rule_revision: number;
+  sop_version: number;
+  user: string;
+  ts: string;
+  yaml_source: string;
+}
+
+export interface SopVersionResponse {
+  sop_id: number;
+  sop_title: string;
+  version: number;
+  recent_changes: SopVersionChange[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -506,9 +626,93 @@ export const workflowsApi = {
     return toDetail(graph);
   },
 
+  /** Current SOP execution mode for a workflow. */
+  async executionMode(id: string): Promise<ExecutionModeResponse> {
+    return builderClient.get<ExecutionModeResponse>(
+      `/workflows/${id}/execution-mode/`,
+    );
+  },
+
+  /**
+   * Switch the workflow between linear and parallel SOP execution. The backend
+   * also transforms the canvas (adds/removes the Fork + Verdict nodes).
+   */
+  async setExecutionMode(
+    id: string,
+    mode: ExecutionMode,
+  ): Promise<ExecutionModeResponse> {
+    return builderClient.put<ExecutionModeResponse>(
+      `/workflows/${id}/execution-mode/`,
+      { mode },
+    );
+  },
+
   /** Ordered SOP columns (workbenches) of a workflow. */
   async sopColumns(id: string): Promise<SopColumn[]> {
     return builderClient.get<SopColumn[]>(`/workflows/${id}/sop-order/`);
+  },
+
+  /**
+   * Persist the per-SOP extra context for one workbench. This text is injected
+   * verbatim into every rule-evaluation prompt for that SOP at execution time.
+   */
+  async setWorkbenchContext(
+    workbenchId: string,
+    extraContext: string,
+  ): Promise<WorkbenchContextResponse> {
+    return builderClient.put<WorkbenchContextResponse>(
+      `/workbenches/${workbenchId}/context/`,
+      { extra_context: extraContext },
+    );
+  },
+
+  /** Current SOP version + recent rule-change history for one SOP column. */
+  async sopVersion(workbenchId: string): Promise<SopVersionResponse> {
+    return builderClient.get<SopVersionResponse>(
+      `/workbenches/${workbenchId}/sop-version/`,
+    );
+  },
+
+  /**
+   * Enqueue an AI YAML↔DB comparison on Celery (the compare loop is LLM-bound
+   * and runs in the worker, not the web request). Returns a job id; poll
+   * {@link reconcileStatus} for progress and the final findings.
+   */
+  async reconcileAnalyze(
+    workbenchId: string,
+    yaml: string,
+    source = "pasted",
+  ): Promise<ReconcileJobStart> {
+    return builderClient.post<ReconcileJobStart>(
+      `/workbenches/${workbenchId}/reconcile/analyze/`,
+      { yaml, source },
+    );
+  },
+
+  /** Poll a queued reconcile-analyze job for progress / result / error. */
+  async reconcileStatus(
+    workbenchId: string,
+    jobId: string,
+  ): Promise<ReconcileStatusResponse> {
+    return builderClient.get<ReconcileStatusResponse>(
+      `/workbenches/${workbenchId}/reconcile/status/${jobId}/`,
+    );
+  },
+
+  /**
+   * Apply the auditor-accepted findings to the canonical SOP rules. Bumps the
+   * SOP version + per-rule revision and logs every change to MongoDB.
+   */
+  async reconcileApply(
+    workbenchId: string,
+    accepted: ReconcileFinding[],
+    reconcileId: string,
+    yamlSource = "pasted",
+  ): Promise<ReconcileApplyResponse> {
+    return builderClient.post<ReconcileApplyResponse>(
+      `/workbenches/${workbenchId}/reconcile/apply/`,
+      { accepted, reconcile_id: reconcileId, yaml_source: yamlSource },
+    );
   },
 
   /**

@@ -18,6 +18,12 @@ export type ShapeVariant =
 export function detectShapeType(slug: string, label: string): ShapeVariant {
   const hay = `${slug} ${label}`.toLowerCase().replace(/[-_]/g, '');
 
+  // Parallel-execution control nodes: verdict (fan-in) reads as a terminal pill,
+  // the fork/split (fan-out) reads as a diamond branch.
+  if (hay.includes('verdict'))
+    return 'terminator';
+  if (hay.includes('fork') || hay.includes('parallelsplit') || hay.includes('split'))
+    return 'decision';
   if (hay.includes('terminator') || hay.includes('terminal') || hay.includes('start') || hay.includes('end'))
     return 'terminator';
   if (hay.includes('decision') || hay.includes('diamond') || hay.includes('condition'))
