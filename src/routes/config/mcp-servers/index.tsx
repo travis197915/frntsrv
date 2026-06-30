@@ -137,7 +137,7 @@ export default function McpServersPage() {
     saveMutation.mutate(payload);
   };
 
-  const rows = data ?? [];
+  const rows = Array.isArray(data) ? data : [];
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;

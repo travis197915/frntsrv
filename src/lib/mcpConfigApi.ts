@@ -8,6 +8,7 @@ import { toolsClient } from "@/lib/clients";
 import type {
   McpServerConfig,
   McpServerConfigInput,
+  McpServerListResponse,
   McpServerTestResult,
   ToolCall,
   ToolCallInput,
@@ -28,8 +29,19 @@ export const toolCallKeys = {
     ["tool-calls", "page", params] as const,
 };
 
+function normalizeMcpServerList(
+  data: McpServerConfig[] | McpServerListResponse | null | undefined,
+): McpServerConfig[] {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.servers)) return data.servers;
+  return [];
+}
+
 export const mcpServerApi = {
-  list: () => toolsClient.get<McpServerConfig[]>("/mcp-servers/"),
+  list: async () => {
+    const data = await toolsClient.get<McpServerListResponse>("/mcp-servers/");
+    return normalizeMcpServerList(data);
+  },
   create: (body: McpServerConfigInput) =>
     toolsClient.post<McpServerConfig>("/mcp-servers/", body),
   update: (id: string, body: Partial<McpServerConfigInput>) =>

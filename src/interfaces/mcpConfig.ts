@@ -72,6 +72,12 @@ export interface ToolCall {
   updated_at: string;
 }
 
+/** List envelope from ``GET /api/agent-tools/mcp-servers/``. */
+export interface McpServerListResponse {
+  runtime_config_source: string;
+  servers: McpServerConfig[];
+}
+
 export interface ToolCallInput {
   name: string;
   display_name?: string;
