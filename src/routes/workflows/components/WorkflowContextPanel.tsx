@@ -176,6 +176,7 @@ function SopListItem({
         sopId={sop.audit_sop_id}
         version={sop.sop_version}
         canReview={canWrite}
+        ingestionStatus={sop.status}
         onComplete={onReviewComplete}
         className="mt-1.5 ml-4"
       />

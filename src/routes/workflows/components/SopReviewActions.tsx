@@ -23,12 +23,18 @@ export function canReviewSopVersion(version?: BuilderSopVersion | null): boolean
   return true;
 }
 
+export function isSopIngestionComplete(status?: string): boolean {
+  return status === 'COMPLETED' || status === 'PARTIAL';
+}
+
 type ReviewAction = 'approve' | 'reject';
 
 interface SopReviewActionsProps {
   sopId: number | null | undefined;
   version?: BuilderSopVersion | null;
   canReview?: boolean;
+  /** Hide while ingestion is still QUEUED / RUNNING. */
+  ingestionStatus?: string;
   onComplete?: () => void;
   className?: string;
 }
@@ -68,6 +74,7 @@ export default function SopReviewActions({
   sopId,
   version,
   canReview = false,
+  ingestionStatus,
   onComplete,
   className,
 }: SopReviewActionsProps) {
@@ -75,7 +82,14 @@ export default function SopReviewActions({
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<ReviewAction | null>(null);
 
-  if (!canReview || !sopId || !canReviewSopVersion(version)) return null;
+  if (
+    !canReview ||
+    !sopId ||
+    !canReviewSopVersion(version) ||
+    (ingestionStatus !== undefined && !isSopIngestionComplete(ingestionStatus))
+  ) {
+    return null;
+  }
 
   const versionLabel = version?.version_number ? ` v${version.version_number}` : '';
   const copy = pendingAction ? CONFIRM_COPY[pendingAction] : null;
