@@ -33,7 +33,7 @@ export default function Login() {
       footer={
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link to="/register" className="font-medium text-[#8B2BE2] hover:text-[#7a22cc] transition-colors">
+          <Link to="/register" className="font-medium text-primary hover:text-[#e5551f] transition-colors">
             Sign up
           </Link>
         </p>
@@ -50,7 +50,7 @@ export default function Login() {
           label="Work email"
           type="email"
           defaultValue=""
-          placeholder="you@wipro.com"
+          placeholder="you@optum.com"
           validators={{ required: true, isEmail: true }}
         />
         <FormInput
@@ -67,11 +67,11 @@ export default function Login() {
         <label className="flex cursor-pointer items-center gap-2">
           <input
             type="checkbox"
-            className="h-4 w-4 rounded border-input bg-background accent-[#8B2BE2] focus:ring-[#8B2BE2]/20"
+            className="h-4 w-4 rounded border-input bg-background accent-primary focus:ring-primary/20"
           />
           <span className="text-sm">Remember me</span>
         </label>
-        <a href="#" className="text-sm font-medium text-[#8B2BE2] hover:text-[#7a22cc] transition-colors">
+        <a href="#" className="text-sm font-medium text-primary hover:text-[#e5551f] transition-colors">
           Forgot password?
         </a>
       </div>

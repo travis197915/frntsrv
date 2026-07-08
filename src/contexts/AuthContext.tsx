@@ -24,6 +24,17 @@ function toUserRole(role: CorebackendUser['role'] | 'MEMBER'): UserRole {
   return role === 'ADMIN' ? 'ADMIN' : 'AUDITOR';
 }
 
+export const ADMIN_ONLY_MESSAGE =
+  'This platform is restricted to admin users. Please use the Claims Audit Review application.';
+
+function assertAdminAccess(u: User): void {
+  if (!isAdmin(u.role)) {
+    clearToken();
+    saveUserToStorage(null);
+    throw new Error(ADMIN_ONLY_MESSAGE);
+  }
+}
+
 function adaptUser(u: CorebackendUser): User {
   return {
     id:        u.id,
@@ -80,12 +91,21 @@ type AuthProviderProps = { children: ReactNode };
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(() => loadUserFromStorage());
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = loadUserFromStorage();
+    if (stored && !isAdmin(stored.role)) {
+      clearToken();
+      saveUserToStorage(null);
+      return null;
+    }
+    return stored;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const persistSession = useCallback((payload: AuthResponse) => {
     if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
     const u = adaptUser(payload.user);
+    assertAdminAccess(u);
     setToken(payload.token);
     setUser(u);
     saveUserToStorage(u);
@@ -155,6 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .get<{ user: CorebackendUser }>('/auth/me')
       .then((res) => {
         const u = adaptUser(res.user);
+        assertAdminAccess(u);
         setUser(u);
         saveUserToStorage(u);
       })

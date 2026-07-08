@@ -8,10 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist is intentionally committed so it can be deployed/run on machines
+# that can't build (e.g. unsupported Node version). Build locally, commit dist.
 dist-ssr
 *.local
 .env
+dist/
 
 # Editor directories and files
 .vscode/*

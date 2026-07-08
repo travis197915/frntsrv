@@ -8,8 +8,7 @@ import { PlatformSection } from '@/components/Sidebar';
 import { ThemeToggleButton } from '@/components/ThemeToggleButton';
 
 // Client branding from environment variables
-const CLIENT_NAME = import.meta.env.VITE_CLIENT_NAME || 'Client Name';
-const CLIENT_LOGO = import.meta.env.VITE_CLIENT_LOGO || '';
+const CLIENT_NAME = import.meta.env.VITE_CLIENT_NAME || 'Optum';
 
 function UserBadge() {
   const { user, logout } = useAuth();
@@ -79,37 +78,16 @@ function UserBadge() {
 function SidebarNav({ onNavClick }: { onNavClick: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Branding — Our logo + client brand */}
-      <div className="px-4 py-3 border-b border-border space-y-2.5 shrink-0">
-        {/* ToyStack brand (vendor) */}
-        <div className="flex items-center gap-2">
+      {/* Branding */}
+      <div className="shrink-0 border-b border-border">
+        <div className="px-4 py-3">
           <img
-            src="/wipro.png"
-            alt="ToyStack"
-            className="h-8 w-8 object-contain opacity-60"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            src="/logo.svg"
+            alt="Optum"
+            className="h-7 object-contain"
           />
-          <span className="text-[10px] text-muted-foreground tracking-wide">Powered by Wipro</span>
         </div>
-
-        {/* Client brand */}
-        <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-md bg-primary/10 border border-border flex items-center justify-center overflow-hidden shrink-0">
-            {CLIENT_LOGO ? (
-              <img
-                src={CLIENT_LOGO}
-                alt={CLIENT_NAME}
-                className="h-full w-full object-contain"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : (
-              <span className="text-sm font-bold text-primary">
-                {CLIENT_NAME.charAt(0).toUpperCase()}
-              </span>
-            )}
-          </div>
-          <span className="text-sm font-semibold truncate text-foreground">{CLIENT_NAME}</span>
-        </div>
+        <div className="h-[3px] bg-primary" />
       </div>
 
       {/* Navigation */}

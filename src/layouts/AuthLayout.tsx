@@ -17,7 +17,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
 
         <div className="relative z-10 flex flex-col h-full px-14 xl:px-20 py-14">
           <div className="flex items-center gap-3 mb-auto">
-            <img src="/wipro.png" alt="Wipro" className="h-15 object-contain brightness-0 invert" />
+            <img src="/logo.svg" alt="Optum" className="h-10 object-contain brightness-0 invert" />
           </div>
 
           <div className="mb-auto">
@@ -54,7 +54,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           </div>
 
           <p className="text-xs text-white/40 font-medium tracking-wide">
-            POWERED BY WIPRO · UHG CLAIMS PLATFORM
+            UHG CLAIMS PLATFORM
           </p>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       <div className="flex flex-1 items-center justify-center px-6 py-14 sm:px-10 lg:px-12 xl:px-20">
         <div className="w-full max-w-[400px]">
           <div className="flex lg:hidden flex-col items-center gap-3 mb-10">
-            <img src="/wipro.png" alt="Wipro" className="h-8 object-contain dark:invert" />
+            <img src="/logo.svg" alt="Optum" className="h-8 object-contain" />
             <p className="text-sm text-muted-foreground text-center max-w-xs">
               AI-Powered Claims Intelligence for UHG
             </p>

@@ -30,11 +30,11 @@ export default function Register() {
   return (
     <AuthLayout
       title="Create account"
-      subtitle="New accounts receive auditor access by default"
+      subtitle="Admin access required — contact your administrator if you need an account"
       footer={
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-[#8B2BE2] hover:text-[#7a22cc] transition-colors">
+          <Link to="/login" className="font-medium text-primary hover:text-[#e5551f] transition-colors">
             Sign in
           </Link>
         </p>
@@ -58,7 +58,7 @@ export default function Register() {
           label="Work email"
           type="email"
           defaultValue=""
-          placeholder="you@wipro.com"
+          placeholder="you@optum.com"
           validators={{ required: true, isEmail: true }}
         />
         <FormInput

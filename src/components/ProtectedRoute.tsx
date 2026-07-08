@@ -1,8 +1,9 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { isAdmin } from '@/utils/user';
 
 /**
- * Gate every authenticated route on a valid session.
+ * Gate every authenticated route on a valid admin session.
  */
 export function ProtectedRoute() {
   const { user } = useAuth();
@@ -10,6 +11,10 @@ export function ProtectedRoute() {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (!isAdmin(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return (

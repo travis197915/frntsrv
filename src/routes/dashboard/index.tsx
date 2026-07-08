@@ -80,19 +80,19 @@ export default function DashboardPage() {
             icon={Bot}
             label="Total Agents"
             value={stats?.totalAgents ?? 0}
-            iconColor="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            iconColor="bg-orange-100 text-[#FF612B] dark:bg-orange-900/40 dark:text-orange-300"
           />
           <StatCard
             icon={Activity}
             label="Online Agents"
             value={stats?.onlineAgents ?? 0}
-            iconColor="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+            iconColor="bg-orange-50 text-[#e5551f] dark:bg-orange-950/40 dark:text-orange-200"
           />
           <StatCard
             icon={GitBranch}
             label="Active Workflows"
             value={stats?.activeWorkflows ?? 0}
-            iconColor="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+            iconColor="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
           />
           <StatCard
             icon={Clock}

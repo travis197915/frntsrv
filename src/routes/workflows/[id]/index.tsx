@@ -483,7 +483,7 @@ function WorkflowBuilderInner() {
   );
 
   const dotColor =
-    ui.theme === "dark" ? "oklch(0.35 0.02 250)" : "oklch(0.78 0.02 250)";
+    ui.theme === "dark" ? "oklch(0.35 0.02 30)" : "oklch(0.78 0.02 30)";
 
   if (!isNew && (workflowLoading || !buildChecked)) {
     return <WorkflowBuilderLoading />;
