@@ -12,6 +12,7 @@
  */
 
 import { builderClient, toolsClient } from "./clients";
+import { API_BASE } from "./apiClient";
 import { getToken } from "@/utils/auth";
 import type {
   BuilderConnection,
@@ -394,9 +395,7 @@ export interface BuildStreamHandlers {
   onFailed?: (data: { detail: string }) => void;
 }
 
-const BUILDER_BASE = `${(
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000"
-).replace(/\/+$/, "")}/api/builder`;
+const BUILDER_BASE = `${API_BASE}/api/builder`;
 
 /**
  * Tail the SOP→workflow build via Server-Sent Events. Returns a promise that

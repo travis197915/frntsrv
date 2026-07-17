@@ -1,29 +1,32 @@
 /**
  * Shared HTTP client instances.
  *
- * Every module that needs to hit the relay imports from here instead of
- * calling `makeClient` ad-hoc. This guarantees one base-URL per service.
+ * Auth / users / dashboard BFF → Node (AUTH_BASE).
+ * Builder / ingest / execute / tools / agents / runs → Django (API_BASE).
  */
 
-import { makeClient } from "./apiClient";
+import { AUTH_BASE, API_BASE, makeClient } from "./apiClient";
 
-/** Identity routes — /auth/* (Node, no proxy). */
-export const relayClient = makeClient("");
+/** Identity routes — /auth/* (Node). */
+export const relayClient = makeClient(AUTH_BASE);
 
-/** Builder REST — /api/builder/* (proxied to Django). */
-export const builderClient = makeClient("/api/builder");
+/** User management — /api/users/* (Node). */
+export const usersClient = makeClient(AUTH_BASE, "/api/users");
 
-/** SOP ingestion — /api/ingest/* (proxied to Django). */
-export const ingestClient = makeClient("/api/ingest");
+/** Dashboard BFF aggregation — /api/dashboard/* (Node). */
+export const dashboardClient = makeClient(AUTH_BASE, "/api/dashboard");
 
-/** Tool registry — /api/agent-tools/* (proxied to Django). */
-export const toolsClient = makeClient("/api/agent-tools");
+/** Builder REST — /api/builder/* (Django agentic). */
+export const builderClient = makeClient(API_BASE, "/api/builder");
 
-/** Execution engine — /api/execute/* (proxied to Django). */
-export const executeClient = makeClient("/api/execute");
+/** SOP ingestion — /api/ingest/* (Django agentic). */
+export const ingestClient = makeClient(API_BASE, "/api/ingest");
 
-/** User management — /api/users/* (Node, no proxy). */
-export const usersClient = makeClient("/api/users");
+/** Tool registry — /api/agent-tools/* (Django agentic). */
+export const toolsClient = makeClient(API_BASE, "/api/agent-tools");
 
-/** Generic /api/* — used by query hooks (agents, runs, dashboard). */
-export const apiClient = makeClient("/api");
+/** Execution engine — /api/execute/* (Django agentic). */
+export const executeClient = makeClient(API_BASE, "/api/execute");
+
+/** Generic Django /api/* — agents, runs, etc. */
+export const apiClient = makeClient(API_BASE, "/api");

@@ -4,18 +4,36 @@
  * - Throws `ApiError` on non-2xx.
  * - Bounces to /login on 401.
  *
+ * Two backends (same pattern as audit-review-dashboard):
+ *   AUTH_BASE    — Node claims-corebackend (auth, users, dashboard BFF)
+ *   API_BASE     — Django agentic-backend (builder, ingest, execute, tools, …)
+ *
  * Usage:
- *   const api = makeClient('/api/builder');
+ *   const api = makeClient(API_BASE, '/api/builder');
  *   const data = await api.get<MyType>('/workflows/');
  */
 
 import { clearAuth, getToken } from "@/utils/auth";
+import { runtimeEnv } from "@/lib/runtimeConfig";
 
 const rstrip = (s: string) => s.replace(/\/+$/, "");
 
-/** Base URL of the Node relay backend. */
-const RELAY_BASE: string = rstrip(
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000",
+/** Node `claims-corebackend` — identity, users, dashboard aggregation. */
+export const AUTH_BASE = rstrip(
+  runtimeEnv(
+    "VITE_AUTH_API_BASE_URL",
+    import.meta.env.VITE_AUTH_API_BASE_URL,
+    "http://localhost:4000",
+  ),
+);
+
+/** Django `agentic-backend` — builder / ingest / execute / agent-tools / runs. */
+export const API_BASE = rstrip(
+  runtimeEnv(
+    "VITE_AGENTIC_API_BASE_URL",
+    import.meta.env.VITE_AGENTIC_API_BASE_URL,
+    "http://localhost:8000",
+  ),
 );
 
 export class ApiError extends Error {
@@ -28,8 +46,8 @@ export class ApiError extends Error {
   }
 }
 
-export function makeClient(subPath: string) {
-  const base = `${RELAY_BASE}${subPath}`;
+export function makeClient(origin: string, subPath = "") {
+  const base = `${rstrip(origin)}${subPath}`;
 
   async function request<T>(
     method: string,
@@ -73,7 +91,8 @@ export function makeClient(subPath: string) {
     if (res.status === 401) {
       clearAuth();
       const path = typeof window !== "undefined" ? window.location.pathname : "";
-      const isPublicAuth = path === "/login" || path === "/register";
+      const isPublicAuth =
+        path === "/login" || path === "/register" || path === "/health";
       if (typeof window !== "undefined" && !isPublicAuth) {
         window.location.replace("/login");
       }

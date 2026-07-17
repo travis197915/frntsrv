@@ -6,9 +6,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getRoleLabel } from '@/utils/user';
 import { PlatformSection } from '@/components/Sidebar';
 import { ThemeToggleButton } from '@/components/ThemeToggleButton';
+import { runtimeEnv } from '@/lib/runtimeConfig';
 
-// Client branding from environment variables
-const CLIENT_NAME = import.meta.env.VITE_CLIENT_NAME || 'Optum';
+// Client branding — runtime /config.js overrides Vite bake-in
+const CLIENT_NAME = runtimeEnv(
+  'VITE_CLIENT_NAME',
+  import.meta.env.VITE_CLIENT_NAME,
+  'Optum',
+);
 
 function UserBadge() {
   const { user, logout } = useAuth();

@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import StatusBadge from "@/components/StatusBadge";
-import { apiClient } from "@/lib/clients";
+import { apiClient, dashboardClient } from "@/lib/clients";
 // import { getUsageSummary } from "@/routes/ai-usage/demoData";
 
 function StatCard({
@@ -47,12 +47,12 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: () =>
-      apiClient.get<{
+      dashboardClient.get<{
         totalAgents: number;
         onlineAgents: number;
         activeWorkflows: number;
         totalTransactions: number;
-      }>("/dashboard/stats"),
+      }>("/stats"),
     staleTime: 60_000,
   });
 

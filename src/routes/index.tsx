@@ -18,6 +18,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import UnauthorizedPage from "@/routes/unauthorized/UnauthorizedPage";
 import LoginRoute from "@/routes/login";
 import RegisterRoute from "@/routes/register";
+import HealthPage from "@/routes/health";
 
 export default function AppRoutes() {
   return (
@@ -25,6 +26,7 @@ export default function AppRoutes() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/register" element={<RegisterRoute />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="/health" element={<HealthPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Navigate to="/workflows" replace />} />

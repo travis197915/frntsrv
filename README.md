@@ -23,34 +23,25 @@ A React SPA for managing AI-driven claims workflows, agents, and run activity. A
 
 ```bash
 yarn install
-cp .env.example .env    # set VITE_API_BASE_URL
+cp .env.example .env    # set VITE_AUTH_API_BASE_URL + VITE_AGENTIC_API_BASE_URL
 yarn dev                # http://localhost:5173
 yarn build              # production build → dist/
 yarn compile            # tsc -b (typecheck only)
 ```
 
-Requires the Node relay (`claims-corebackend`, default `http://localhost:4000`) and Django agentic backend running. See sibling repos `uhc-claims-backend` and `uhc-agentic-backend`.
-
----
-
 ## Backend Architecture
 
-The frontend never calls Django directly. All REST traffic goes through the Node relay:
+Auth and user admin hit the Node backend. Builder / ingest / execute / tools hit Django agentic directly (same JWT):
 
 ```
 React (fetch + TanStack Query)
-      │  REST + JWT Bearer
-      ▼
-Node relay  (claims-corebackend, port 4000)
-      │  Identity: Prisma + JWT minting  (/auth/*, /api/users/*)
-      │  BFF:      orchestration         (/api/dashboard/stats)
-      │  Proxy:    forward with JWT      (/api/builder/*, /api/ingest/*, …)
-      │            POST/PUT/PATCH/DELETE → 403 for AUDITOR role
-      ▼
-Django REST API  (uhc-agentic-backend, port 8000)
+      ├─ /auth/*, /api/users/*, /api/dashboard/*  →  Node (claims-corebackend :4000)
+      └─ /api/builder/*, /api/ingest/*, …         →  Django (agentic-backend :8000)
 ```
 
-Authentication: the Node relay mints HS256 JWTs; every proxied Django request carries `Authorization: Bearer <jwt>` (both services share `JWT_SECRET`).
+Requires Node (`VITE_AUTH_API_BASE_URL`) and Django (`VITE_AGENTIC_API_BASE_URL`) running. See sibling repos `uhc-claims-backend` and `uhc-agentic-backend`.
+
+Authentication: Node mints HS256 JWTs; Django accepts the same `Authorization: Bearer <jwt>` (shared `JWT_SECRET`).
 
 ---
 
@@ -69,11 +60,12 @@ Authentication: the Node relay mints HS256 JWTs; every proxied Django request ca
 
 ## Environment
 
-| Variable            | Used by                                      | Default               |
-| ------------------- | -------------------------------------------- | --------------------- |
-| `VITE_API_BASE_URL` | All REST — auth, users, proxied Django routes | `http://localhost:4000` |
-| `VITE_CLIENT_NAME`  | Brand string in sidebar chrome               | `United Health Care`  |
-| `VITE_CLIENT_LOGO`  | Optional logo URL in sidebar                 | —                     |
+| Variable                     | Used by                                      | Default                 |
+| ---------------------------- | -------------------------------------------- | ----------------------- |
+| `VITE_AUTH_API_BASE_URL`     | Node — auth, users, dashboard BFF            | `http://localhost:4000` |
+| `VITE_AGENTIC_API_BASE_URL`  | Django — builder, ingest, execute, tools     | `http://localhost:8000` |
+| `VITE_CLIENT_NAME`           | Brand string in sidebar chrome               | `United Health Care`    |
+| `VITE_CLIENT_LOGO`           | Optional logo URL in sidebar                 | —                       |
 
 ---
 

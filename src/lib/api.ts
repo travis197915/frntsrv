@@ -4,7 +4,7 @@
  */
 
 // ── HTTP client factory + error class ───────────────────────────────────────
-export { makeClient, ApiError } from "./apiClient";
+export { makeClient, ApiError, AUTH_BASE, API_BASE } from "./apiClient";
 
 // ── Named client instances (backward-compatible aliases) ────────────────────
 export { executionApi, formatExecutionLogLine } from "./executionApi";
@@ -15,14 +15,12 @@ export {
   toolsClient as toolsApi,
   executeClient,
   usersClient as usersApi,
+  dashboardClient,
   apiClient,
 } from "./clients";
 
-const rstrip = (s: string) => s.replace(/\/+$/, "");
-/** Points to the Node relay so all traffic stays within one origin. */
-export const DJANGO_ORIGIN: string = rstrip(
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000",
-);
+/** @deprecated Prefer API_BASE — kept for older imports. */
+export { API_BASE as DJANGO_ORIGIN } from "./apiClient";
 
 // ── Domain types ────────────────────────────────────────────────────────────
 export type * from "../interfaces/sop";

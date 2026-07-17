@@ -2,14 +2,12 @@
  * Execution engine API — batch upload + SSE event stream.
  *
  * SSE uses fetch (not EventSource) so the JWT Authorization header is sent
- * through the Node relay.
+ * through the Django agentic backend.
  */
 
 import { getToken } from "@/utils/auth";
+import { API_BASE } from "./apiClient";
 import { executeClient } from "./clients";
-
-const rstrip = (s: string) => s.replace(/\/+$/, "");
-const RELAY_BASE = rstrip(import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000");
 
 export interface RunBatchAsyncResponse {
   batch_id: string;
@@ -62,7 +60,7 @@ export const executionApi = {
     signal?: AbortSignal,
   ): Promise<void> {
     const path = streamUrl.startsWith("/") ? streamUrl : `/${streamUrl}`;
-    const url = `${RELAY_BASE}${path}`;
+    const url = `${API_BASE}${path}`;
     const token = getToken();
     const res = await fetch(url, {
       method: "GET",
