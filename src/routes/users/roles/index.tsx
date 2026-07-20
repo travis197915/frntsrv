@@ -23,19 +23,19 @@ import type { AclPermission, AclRole } from "@/interfaces/acl";
  * script both look them up by name) — block deletion client-side. */
 const SYSTEM_ROLE_NAMES = new Set(["ADMIN", "AUDITOR"]);
 
+const WILDCARD = "*";
+
 function groupPermissions(
   permissions: AclPermission[],
 ): Array<{ group: string; items: AclPermission[] }> {
   const groups = new Map<string, AclPermission[]>();
   for (const p of permissions) {
-    const group = p.key === "*" ? "Full access" : p.key.split(":")[0];
+    const group = p.key.split(":")[0];
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group)!.push(p);
   }
   return [...groups.entries()]
-    .sort(([a], [b]) =>
-      a === "Full access" ? -1 : b === "Full access" ? 1 : a.localeCompare(b),
-    )
+    .sort(([a], [b]) => a.localeCompare(b))
     .map(([group, items]) => ({
       group,
       items: [...items].sort((a, b) => a.key.localeCompare(b.key)),
@@ -50,13 +50,25 @@ function RolePermissionEditor({
   catalog: AclPermission[];
 }) {
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(role.permissions),
+  // The wildcard is tracked separately from individual keys — the backend
+  // treats "*" as "matches any permission", so a role holding it effectively
+  // grants every permission below regardless of which specific keys are also
+  // stored. Keeping a shadow set of granular keys means turning full access
+  // off restores whatever fine-grained selection was there before, instead
+  // of wiping it.
+  const [hasWildcard, setHasWildcard] = useState(
+    () => role.permissions.includes(WILDCARD),
+  );
+  const [grantedKeys, setGrantedKeys] = useState<Set<string>>(
+    () => new Set(role.permissions.filter((k) => k !== WILDCARD)),
   );
 
+  const originalHasWildcard = role.permissions.includes(WILDCARD);
+  const originalKeys = new Set(role.permissions.filter((k) => k !== WILDCARD));
   const dirty =
-    selected.size !== role.permissions.length ||
-    role.permissions.some((k) => !selected.has(k));
+    hasWildcard !== originalHasWildcard ||
+    grantedKeys.size !== originalKeys.size ||
+    [...grantedKeys].some((k) => !originalKeys.has(k));
 
   const { mutateAsync: savePermissions, isPending: saving } = useMutation({
     mutationFn: (permissionKeys: string[]) =>
@@ -65,7 +77,7 @@ function RolePermissionEditor({
   });
 
   const toggle = (key: string) => {
-    setSelected((prev) => {
+    setGrantedKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -73,7 +85,7 @@ function RolePermissionEditor({
     });
   };
 
-  const grouped = groupPermissions(catalog);
+  const grouped = groupPermissions(catalog.filter((p) => p.key !== WILDCARD));
 
   return (
     <div className="space-y-4">
@@ -83,13 +95,35 @@ function RolePermissionEditor({
           size="sm"
           disabled={!dirty || saving}
           loading={saving}
-          onClick={() => savePermissions([...selected])}
+          onClick={() =>
+            savePermissions(
+              hasWildcard ? [WILDCARD] : [...grantedKeys],
+            )
+          }
         >
           Save permissions
         </Button>
       </div>
 
-      <div className="space-y-5">
+      <label className="flex items-start gap-2.5 rounded-md border border-border bg-muted/20 px-3 py-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+          checked={hasWildcard}
+          onChange={(e) => setHasWildcard(e.target.checked)}
+        />
+        <span>
+          <span className="block text-sm font-medium text-foreground">
+            Full access
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            Grants every permission below, including ones added later. Turn
+            this off to grant permissions individually instead.
+          </span>
+        </span>
+      </label>
+
+      <div className={cn("space-y-5", hasWildcard && "opacity-60")}>
         {grouped.map(({ group, items }) => (
           <div key={group}>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -99,12 +133,16 @@ function RolePermissionEditor({
               {items.map((perm) => (
                 <label
                   key={perm.id}
-                  className="flex items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted/30 cursor-pointer"
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-md px-2 py-1.5",
+                    hasWildcard ? "cursor-default" : "hover:bg-muted/30 cursor-pointer",
+                  )}
                 >
                   <input
                     type="checkbox"
                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
-                    checked={selected.has(perm.key)}
+                    checked={hasWildcard || grantedKeys.has(perm.key)}
+                    disabled={hasWildcard}
                     onChange={() => toggle(perm.key)}
                   />
                   <span>
@@ -228,28 +266,39 @@ export default function RolesPage() {
               </Button>
             )}
             <div className="rounded-lg border border-border bg-card divide-y divide-border overflow-hidden">
-              {(roles ?? []).map((role) => (
-                <button
-                  key={role.id}
-                  type="button"
-                  onClick={() => setSelectedRoleId(role.id)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 transition-colors hover:bg-muted/30",
-                    selectedRoleId === role.id && "bg-muted/50",
-                  )}
-                >
-                  <p className="text-sm font-medium text-foreground">
-                    {role.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                    {role.description || "No description"}
-                  </p>
-                  <Badge variant="outline" className="mt-1.5">
-                    {role.permissions.length} permission
-                    {role.permissions.length === 1 ? "" : "s"}
-                  </Badge>
-                </button>
-              ))}
+              {(roles ?? []).map((role) => {
+                const isSelected = selectedRoleId === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    aria-current={isSelected}
+                    onClick={() => setSelectedRoleId(role.id)}
+                    className={cn(
+                      "w-full text-left px-4 py-3 transition-colors border-l-2",
+                      isSelected
+                        ? "bg-primary/10 border-l-primary"
+                        : "border-l-transparent hover:bg-muted/30",
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "text-sm font-medium",
+                        isSelected ? "text-primary" : "text-foreground",
+                      )}
+                    >
+                      {role.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      {role.description || "No description"}
+                    </p>
+                    <Badge variant="outline" className="mt-1.5">
+                      {role.permissions.length} permission
+                      {role.permissions.length === 1 ? "" : "s"}
+                    </Badge>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
