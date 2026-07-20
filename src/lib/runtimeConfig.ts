@@ -44,3 +44,41 @@ export function runtimeEnv(
     ""
   );
 }
+
+/**
+ * Validates that all required runtime configuration variables are provided.
+ * Throws an error if any required variables are missing.
+ * Call this during app initialization to ensure proper configuration before using API endpoints.
+ */
+export function validateRuntimeConfig(): void {
+  const config = getRuntimeConfig();
+  const required: (keyof RuntimeConfig)[] = [
+    "VITE_AUTH_API_BASE_URL",
+    "VITE_AGENTIC_API_BASE_URL",
+  ];
+
+  const missing: string[] = [];
+  for (const key of required) {
+    const value = config[key];
+    if (!value || value.trim() === "") {
+      missing.push(key);
+    }
+  }
+
+  if (missing.length > 0) {
+    const envVarExamples = missing
+      .map((k) => {
+        const unprefixed = k.replace("VITE_", "");
+        return `-e ${unprefixed}=https://your-api.optum.com`;
+      })
+      .join(" ");
+
+    throw new Error(
+      `Missing required runtime environment variables: ${missing.join(", ")}\n\n` +
+      `When running in Docker, provide them:\n` +
+      `  docker run ${envVarExamples} claims-frontend:latest\n\n` +
+      `Or in Azure App Services:\n` +
+      `  Configuration → Application Settings → add the above variables`
+    );
+  }
+}

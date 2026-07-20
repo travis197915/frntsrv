@@ -8,6 +8,23 @@ import "./index.css";
 import { AuthProvider } from "./contexts/AuthContext";
 import { TooltipProvider } from "./components/ui/tooltip";
 import AppRoutes from "./routes";
+import { validateRuntimeConfig } from "./lib/runtimeConfig";
+
+// Validate required runtime environment variables before app starts
+try {
+  validateRuntimeConfig();
+} catch (error) {
+  // Display error message and prevent app from initializing
+  const message = error instanceof Error ? error.message : "Unknown configuration error";
+  console.error("Configuration Error:", message);
+  document.body.innerHTML = `
+    <div style="padding: 40px; font-family: monospace; white-space: pre-wrap; color: #d32f2f; background-color: #ffebee; border: 1px solid #d32f2f; margin: 20px; border-radius: 4px;">
+      <h1 style="color: #d32f2f; margin-top: 0;">⚠️ Configuration Error</h1>
+      <pre>${message}</pre>
+    </div>
+  `;
+  throw error;
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
