@@ -7,8 +7,9 @@ import { ErrorAlert } from "@/components/ErrorAlert";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/utils/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { usersClient } from "@/lib/clients";
+import { usersClient, rolesClient } from "@/lib/clients";
 import StatusBadge from "@/components/StatusBadge";
+import type { AclRole } from "@/interfaces/acl";
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -26,7 +27,7 @@ export default function UserDetailPage() {
         id: string;
         email: string;
         name: string;
-        role: "ADMIN" | "AUDITOR";
+        role: string;
         isActive: boolean;
         createdAt: string;
         updatedAt: string;
@@ -34,8 +35,13 @@ export default function UserDetailPage() {
     enabled: !!id,
   });
 
+  const { data: roles } = useQuery({
+    queryKey: ["roles"],
+    queryFn: () => rolesClient.get<AclRole[]>("/"),
+  });
+
   const { mutate: updateRole, isPending: roleLoading } = useMutation({
-    mutationFn: ({ uid, role }: { uid: string; role: "ADMIN" | "AUDITOR" }) =>
+    mutationFn: ({ uid, role }: { uid: string; role: string }) =>
       usersClient.patch(`/${uid}/role`, { role }),
     onSuccess: (_data, { uid }) => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -79,7 +85,11 @@ export default function UserDetailPage() {
     );
   }
 
-  const roleOptions: Array<"ADMIN" | "AUDITOR"> = ["ADMIN", "AUDITOR"];
+  // Falls back to the user's current role if the roles list hasn't loaded
+  // yet, so the <select> always has a valid selected option.
+  const roleOptions = roles?.length
+    ? [...new Set([...roles.map((r) => r.name), user.role])]
+    : [user.role];
 
   return (
     <SidebarLayout
@@ -149,7 +159,7 @@ export default function UserDetailPage() {
                   onChange={(e) =>
                     updateRole({
                       uid: user.id,
-                      role: e.target.value as "ADMIN" | "AUDITOR",
+                      role: e.target.value,
                     })
                   }
                 >

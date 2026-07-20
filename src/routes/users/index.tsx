@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, ShieldCheck } from "lucide-react";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import { ErrorAlert } from "@/components/ErrorAlert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import SearchInput from "@/components/SearchInput";
 import { FormPanel, FormInput } from "@/components/FormPanel";
 import {
@@ -23,6 +23,7 @@ import {
   type PaginatedList,
 } from "@/utils/query-pagination";
 import StatusBadge from "@/components/StatusBadge";
+import { cn } from "@/utils/utils";
 
 type UserRow = {
   id: string;
@@ -91,14 +92,23 @@ export default function UsersListPage() {
             />
           </div>
           {isAdmin && (
-            <Button
-              size="sm"
-              onClick={() => setShowAdd(true)}
-              className="gap-2 shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-              Add user
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/users/roles"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-2")}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Manage roles
+              </Link>
+              <Button
+                size="sm"
+                onClick={() => setShowAdd(true)}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add user
+              </Button>
+            </div>
           )}
         </div>
 
@@ -134,8 +144,11 @@ export default function UsersListPage() {
                 type="password"
                 validators={{ required: true }}
               />
-              <FormInput fieldName="role" label="Role (AUDITOR or ADMIN)" />
             </FormPanel>
+            <p className="text-xs text-muted-foreground mt-2">
+              New users start as AUDITOR — promote them from the user's
+              detail page after creation.
+            </p>
           </DialogContent>
         </Dialog>
 

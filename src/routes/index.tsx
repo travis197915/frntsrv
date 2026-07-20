@@ -9,6 +9,7 @@ import WorkflowBuilderPage from "@/routes/workflows/[id]";
 import SettingsPage from "@/routes/settings";
 import UsersListPage from "@/routes/users";
 import UserDetailPage from "@/routes/users/[id]";
+import RolesPage from "@/routes/users/roles";
 import FieldMappingPage from "@/routes/config/field-mapping";
 import ClaimOntologyPage from "@/routes/config/claim-ontology";
 import McpServersPage from "@/routes/config/mcp-servers";
@@ -44,6 +45,7 @@ export default function AppRoutes() {
         <Route path="/config/mcp-servers" element={<McpServersPage />} />
         <Route path="/config/tool-calls" element={<ToolCallsPage />} />
         <Route path="/users" element={<UsersListPage />} />
+        <Route path="/users/roles" element={<RolesPage />} />
         <Route path="/users/:id" element={<UserDetailPage />} />
       </Route>
 

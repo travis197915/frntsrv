@@ -13,6 +13,12 @@ export const relayClient = makeClient(AUTH_BASE);
 /** User management — /api/users/* (Node). */
 export const usersClient = makeClient(AUTH_BASE, "/api/users");
 
+/** ACL administration — /api/roles/* (Node). */
+export const rolesClient = makeClient(AUTH_BASE, "/api/roles");
+
+/** ACL administration — /api/permissions/* (Node). */
+export const permissionsClient = makeClient(AUTH_BASE, "/api/permissions");
+
 /** Dashboard BFF aggregation — /api/dashboard/* (Node). */
 export const dashboardClient = makeClient(AUTH_BASE, "/api/dashboard");
 
