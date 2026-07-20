@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { User, RoleRequirement, UserRole } from '@/utils/user';
-import { canWrite, isAdmin } from '@/utils/user';
+import type { User, UserRole } from '@/utils/user';
+import { canWrite, hasPermission as checkPermission, isAdmin } from '@/utils/user';
 import { AUTH_USER_KEY, clearToken, getToken, setToken } from '@/utils/auth';
 import { authApi, type AuthResponse, type CorebackendUser } from '@/lib/api';
 
@@ -37,12 +37,13 @@ function assertAdminAccess(u: User): void {
 
 function adaptUser(u: CorebackendUser): User {
   return {
-    id:        u.id,
-    email:     u.email,
-    name:      u.name || u.email,
-    role:      toUserRole(u.role),
-    status:    u.isActive ? 'ACTIVE' : 'INACTIVE',
-    createdAt: u.createdAt,
+    id:          u.id,
+    email:       u.email,
+    name:        u.name || u.email,
+    role:        toUserRole(u.role),
+    permissions: u.permissions ?? [],
+    status:      u.isActive ? 'ACTIVE' : 'INACTIVE',
+    createdAt:   u.createdAt,
   };
 }
 
@@ -74,7 +75,8 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
-  hasPermission: (roleRequired: RoleRequirement) => boolean;
+  /** Checks a resource-scoped permission key (e.g. "workflows:edit") against the current user's grants. */
+  hasPermission: (permissionKey: string) => boolean;
   isAdmin: boolean;
   canWrite: boolean;
 }
@@ -152,10 +154,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [navigate]);
 
   const hasPermission = useCallback(
-    (roleRequired: RoleRequirement) => {
+    (permissionKey: string) => {
       if (!user) return false;
-      if (roleRequired === 'ADMIN') return isAdmin(user.role);
-      return true;
+      return checkPermission(user.permissions, permissionKey);
     },
     [user],
   );

@@ -91,8 +91,7 @@ export function makeClient(origin: string, subPath = "") {
     if (res.status === 401) {
       clearAuth();
       const path = typeof window !== "undefined" ? window.location.pathname : "";
-      const isPublicAuth =
-        path === "/login" || path === "/register" || path === "/health";
+      const isPublicAuth = path === "/login" || path === "/health";
       if (typeof window !== "undefined" && !isPublicAuth) {
         window.location.replace("/login");
       }

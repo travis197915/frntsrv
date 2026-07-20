@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { FormPanel, FormInput } from '@/components/FormPanel';
 import { AuthLayout } from '@/layouts/AuthLayout';
@@ -32,10 +32,7 @@ export default function Login() {
       subtitle="Access your Unit Health Care dashboard"
       footer={
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="font-medium text-primary hover:text-[#e5551f] transition-colors">
-            Sign up
-          </Link>
+          Need an account? Ask an administrator to create one for you.
         </p>
       }
     >
