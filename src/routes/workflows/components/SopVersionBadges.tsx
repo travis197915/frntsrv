@@ -63,7 +63,8 @@ export default function SopVersionBadges({ version, className }: SopVersionBadge
 
   const activationStatus = version.activation_status ?? '';
   const activation =
-    (activationStatus && ACTIVATION_STYLES[activationStatus]) ?? {
+    (activationStatus && ACTIVATION_STYLES[activationStatus]) ||
+    {
       label: formatActivationStatus(version.activation_status),
       className:
         'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',

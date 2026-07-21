@@ -20,11 +20,7 @@ const rstrip = (s: string) => s.replace(/\/+$/, "");
 
 /** Node `claims-corebackend` — identity, users, dashboard aggregation. */
 export const AUTH_BASE = rstrip(
-  runtimeEnv(
-    "VITE_AUTH_API_BASE_URL",
-    import.meta.env.VITE_AUTH_API_BASE_URL,
-    "http://localhost:4000",
-  ),
+  runtimeEnv("VITE_AUTH_API_BASE_URL", import.meta.env.VITE_AUTH_API_BASE_URL),
 );
 
 /** Django `agentic-backend` — builder / ingest / execute / agent-tools / runs. */
@@ -32,9 +28,24 @@ export const API_BASE = rstrip(
   runtimeEnv(
     "VITE_AGENTIC_API_BASE_URL",
     import.meta.env.VITE_AGENTIC_API_BASE_URL,
-    "http://localhost:8000",
+    // No fallback - must be provided at runtime
   ),
 );
+
+// Validate that required environment variables are provided
+if (!AUTH_BASE) {
+  throw new Error(
+    "Missing required environment variable: VITE_AUTH_API_BASE_URL or AUTH_API_BASE_URL\n" +
+      "When running in Docker, provide it via: docker run -e AUTH_API_BASE_URL=https://your-api.optum.com ...",
+  );
+}
+
+if (!API_BASE) {
+  throw new Error(
+    "Missing required environment variable: VITE_AGENTIC_API_BASE_URL or AGENTIC_API_BASE_URL\n" +
+      "When running in Docker, provide it via: docker run -e AGENTIC_API_BASE_URL=https://your-api.optum.com ...",
+  );
+}
 
 export class ApiError extends Error {
   status: number;
@@ -90,8 +101,10 @@ export function makeClient(origin: string, subPath = "") {
 
     if (res.status === 401) {
       clearAuth();
-      const path = typeof window !== "undefined" ? window.location.pathname : "";
-      const isPublicAuth = path === "/login" || path === "/health";
+      const path =
+        typeof window !== "undefined" ? window.location.pathname : "";
+      const isPublicAuth =
+        path === "/login" || path === "/register" || path === "/health";
       if (typeof window !== "undefined" && !isPublicAuth) {
         window.location.replace("/login");
       }
