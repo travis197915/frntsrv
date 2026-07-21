@@ -18,12 +18,14 @@ import NotFound from "@/components/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UnauthorizedPage from "@/routes/unauthorized/UnauthorizedPage";
 import LoginRoute from "@/routes/login";
+import AuthCallback from "@/routes/auth/callback";
 import HealthPage from "@/routes/health";
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="/health" element={<HealthPage />} />
 

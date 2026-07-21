@@ -74,6 +74,7 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
+  completeMicrosoftLogin: (token: string) => Promise<void>;
   logout: () => void;
   /** Checks a resource-scoped permission key (e.g. "workflows:edit") against the current user's grants. */
   hasPermission: (permissionKey: string) => boolean;
@@ -104,15 +105,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const persistSession = useCallback((payload: AuthResponse) => {
-    if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
-    const u = adaptUser(payload.user);
+  /** Shared tail once we have a verified user + token, regardless of which login path produced them. */
+  const applySession = useCallback((u: User, token: string) => {
     assertAdminAccess(u);
-    setToken(payload.token);
+    setToken(token);
     setUser(u);
     saveUserToStorage(u);
     return u;
   }, []);
+
+  const persistSession = useCallback(
+    (payload: AuthResponse) => {
+      if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
+      return applySession(adaptUser(payload.user), payload.token);
+    },
+    [applySession],
+  );
+
+  const completeMicrosoftLogin = useCallback(
+    async (token: string) => {
+      setIsLoading(true);
+      try {
+        setToken(token);
+        const res = await authApi.get<{ user: CorebackendUser }>('/auth/me');
+        applySession(adaptUser(res.user), token);
+        navigate('/workflows', { replace: true });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [applySession, navigate],
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -193,12 +216,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading,
       login,
       register,
+      completeMicrosoftLogin,
       logout,
       hasPermission,
       isAdmin: user ? isAdmin(user.role) : false,
       canWrite: user ? canWrite(user.role) : false,
     }),
-    [user, isLoading, login, register, logout, hasPermission],
+    [user, isLoading, login, register, completeMicrosoftLogin, logout, hasPermission],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
