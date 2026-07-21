@@ -72,7 +72,7 @@ export default function Login() {
         />
       </FormPanel>
 
-      <div className="mt-5 flex items-center gap-3">
+      {/* <div className="mt-5 flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
         <span className="text-xs text-muted-foreground">or</span>
         <div className="h-px flex-1 bg-border" />
@@ -89,7 +89,7 @@ export default function Login() {
           <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
         </svg>
         Sign in with Microsoft
-      </a>
+      </a> */}
 
       <div className="mt-5 flex items-center justify-between gap-4">
         <label className="flex cursor-pointer items-center gap-2">
