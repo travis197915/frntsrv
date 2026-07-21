@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { User, RoleRequirement, UserRole } from '@/utils/user';
-import { canWrite, isAdmin } from '@/utils/user';
+import type { User, UserRole } from '@/utils/user';
+import { canWrite, hasPermission as checkPermission, isAdmin } from '@/utils/user';
 import { AUTH_USER_KEY, clearToken, getToken, setToken } from '@/utils/auth';
 import { authApi, type AuthResponse, type CorebackendUser } from '@/lib/api';
 
@@ -37,12 +37,13 @@ function assertAdminAccess(u: User): void {
 
 function adaptUser(u: CorebackendUser): User {
   return {
-    id:        u.id,
-    email:     u.email,
-    name:      u.name || u.email,
-    role:      toUserRole(u.role),
-    status:    u.isActive ? 'ACTIVE' : 'INACTIVE',
-    createdAt: u.createdAt,
+    id:          u.id,
+    email:       u.email,
+    name:        u.name || u.email,
+    role:        toUserRole(u.role),
+    permissions: u.permissions ?? [],
+    status:      u.isActive ? 'ACTIVE' : 'INACTIVE',
+    createdAt:   u.createdAt,
   };
 }
 
@@ -73,8 +74,10 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
+  completeMicrosoftLogin: (token: string) => Promise<void>;
   logout: () => void;
-  hasPermission: (roleRequired: RoleRequirement) => boolean;
+  /** Checks a resource-scoped permission key (e.g. "workflows:edit") against the current user's grants. */
+  hasPermission: (permissionKey: string) => boolean;
   isAdmin: boolean;
   canWrite: boolean;
 }
@@ -102,15 +105,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const persistSession = useCallback((payload: AuthResponse) => {
-    if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
-    const u = adaptUser(payload.user);
+  /** Shared tail once we have a verified user + token, regardless of which login path produced them. */
+  const applySession = useCallback((u: User, token: string) => {
     assertAdminAccess(u);
-    setToken(payload.token);
+    setToken(token);
     setUser(u);
     saveUserToStorage(u);
     return u;
   }, []);
+
+  const persistSession = useCallback(
+    (payload: AuthResponse) => {
+      if (!payload?.token || !payload.user) throw new Error('Invalid auth response');
+      return applySession(adaptUser(payload.user), payload.token);
+    },
+    [applySession],
+  );
+
+  const completeMicrosoftLogin = useCallback(
+    async (token: string) => {
+      setIsLoading(true);
+      try {
+        setToken(token);
+        const res = await authApi.get<{ user: CorebackendUser }>('/auth/me');
+        applySession(adaptUser(res.user), token);
+        navigate('/workflows', { replace: true });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [applySession, navigate],
+  );
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -152,10 +177,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [navigate]);
 
   const hasPermission = useCallback(
-    (roleRequired: RoleRequirement) => {
+    (permissionKey: string) => {
       if (!user) return false;
-      if (roleRequired === 'ADMIN') return isAdmin(user.role);
-      return true;
+      return checkPermission(user.permissions, permissionKey);
     },
     [user],
   );
@@ -192,12 +216,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isLoading,
       login,
       register,
+      completeMicrosoftLogin,
       logout,
       hasPermission,
       isAdmin: user ? isAdmin(user.role) : false,
       canWrite: user ? canWrite(user.role) : false,
     }),
-    [user, isLoading, login, register, logout, hasPermission],
+    [user, isLoading, login, register, completeMicrosoftLogin, logout, hasPermission],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -5,6 +5,8 @@ export interface CorebackendUser {
   email: string;
   name: string;
   role: "ADMIN" | "AUDITOR";
+  /** Flattened resource-scoped grants from the user's Role — drives hasPermission(). */
+  permissions: string[];
   isActive: boolean;
   createdAt: string;
 }

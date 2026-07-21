@@ -9,6 +9,7 @@ import WorkflowBuilderPage from "@/routes/workflows/[id]";
 import SettingsPage from "@/routes/settings";
 import UsersListPage from "@/routes/users";
 import UserDetailPage from "@/routes/users/[id]";
+import RolesPage from "@/routes/users/roles";
 import FieldMappingPage from "@/routes/config/field-mapping";
 import ClaimOntologyPage from "@/routes/config/claim-ontology";
 import McpServersPage from "@/routes/config/mcp-servers";
@@ -17,14 +18,14 @@ import NotFound from "@/components/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UnauthorizedPage from "@/routes/unauthorized/UnauthorizedPage";
 import LoginRoute from "@/routes/login";
-import RegisterRoute from "@/routes/register";
+import AuthCallback from "@/routes/auth/callback";
 import HealthPage from "@/routes/health";
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
-      <Route path="/register" element={<RegisterRoute />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="/health" element={<HealthPage />} />
 
@@ -46,6 +47,7 @@ export default function AppRoutes() {
         <Route path="/config/mcp-servers" element={<McpServersPage />} />
         <Route path="/config/tool-calls" element={<ToolCallsPage />} />
         <Route path="/users" element={<UsersListPage />} />
+        <Route path="/users/roles" element={<RolesPage />} />
         <Route path="/users/:id" element={<UserDetailPage />} />
       </Route>
 
