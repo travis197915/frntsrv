@@ -195,12 +195,8 @@ export default function RolesPage() {
   }, [roles, selectedRoleId]);
 
   const { mutateAsync: createRole, isPending: creating } = useMutation({
-    mutationFn: (payload: {
-      name: string;
-      description?: string;
-      entraAppRole: string | null;
-      precedence: number;
-    }) => rolesClient.post<AclRole>("/", payload),
+    mutationFn: (payload: { name: string; description?: string }) =>
+      rolesClient.post<AclRole>("/", payload),
     onSuccess: (role) => {
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       setSelectedRoleId(role.id);
@@ -208,18 +204,10 @@ export default function RolesPage() {
   });
 
   const { mutateAsync: updateRole, isPending: updating } = useMutation({
-    mutationFn: (payload: {
-      id: string;
-      name: string;
-      description?: string;
-      entraAppRole: string | null;
-      precedence: number;
-    }) =>
+    mutationFn: (payload: { id: string; name: string; description?: string }) =>
       rolesClient.patch<AclRole>(`/${payload.id}`, {
         name: payload.name,
         description: payload.description,
-        entraAppRole: payload.entraAppRole,
-        precedence: payload.precedence,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["roles"] }),
   });
@@ -304,21 +292,10 @@ export default function RolesPage() {
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                       {role.description || "No description"}
                     </p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      <Badge variant="outline">
-                        {role.permissions.length} permission
-                        {role.permissions.length === 1 ? "" : "s"}
-                      </Badge>
-                      {role.entraAppRole ? (
-                        <Badge variant="outline" className="text-primary border-primary/30">
-                          Entra: {role.entraAppRole}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Not mapped
-                        </Badge>
-                      )}
-                    </div>
+                    <Badge variant="outline" className="mt-1.5">
+                      {role.permissions.length} permission
+                      {role.permissions.length === 1 ? "" : "s"}
+                    </Badge>
                   </button>
                 );
               })}
@@ -340,20 +317,6 @@ export default function RolesPage() {
                     <p className="text-sm text-muted-foreground mt-1">
                       {selectedRole.description || "No description"}
                     </p>
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Microsoft SSO mapping
-                      </span>
-                      {selectedRole.entraAppRole ? (
-                        <Badge variant="outline" className="text-primary border-primary/30">
-                          {selectedRole.entraAppRole} · precedence {selectedRole.precedence}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Not mapped — new SSO users land on UNASSIGNED
-                        </Badge>
-                      )}
-                    </div>
                   </div>
                   {isAdmin && (
                     <div className="flex items-center gap-2 shrink-0">
@@ -432,12 +395,9 @@ export default function RolesPage() {
           </DialogHeader>
           <FormPanel
             onSubmit={async (vals) => {
-              const entraAppRole = String(vals.entraAppRole ?? "").trim();
               await createRole({
                 name: String(vals.name),
                 description: vals.description ? String(vals.description) : undefined,
-                entraAppRole: entraAppRole ? entraAppRole : null,
-                precedence: Number(vals.precedence) || 0,
               });
               setShowNewRole(false);
             }}
@@ -457,19 +417,6 @@ export default function RolesPage() {
               label="Description"
               placeholder="Optional"
             />
-            <FormInput
-              fieldName="entraAppRole"
-              label="Entra App Role value"
-              placeholder="e.g. ClaimsReviewLead (optional)"
-              helperText="Must exactly match the Value field of an App Role in the Azure app registration, case-sensitive. Leave blank if this role isn't assigned via Microsoft SSO."
-            />
-            <FormInput
-              fieldName="precedence"
-              type="number"
-              label="Precedence"
-              defaultValue={0}
-              helperText="If a user's Microsoft roles claim matches more than one mapped role, the higher precedence wins."
-            />
           </FormPanel>
           <p className="text-xs text-muted-foreground mt-2">
             New roles start with no permissions — assign them from the role's
@@ -487,13 +434,10 @@ export default function RolesPage() {
             <FormPanel
               key={selectedRole.id}
               onSubmit={async (vals) => {
-                const entraAppRole = String(vals.entraAppRole ?? "").trim();
                 await updateRole({
                   id: selectedRole.id,
                   name: String(vals.name),
                   description: vals.description ? String(vals.description) : undefined,
-                  entraAppRole: entraAppRole ? entraAppRole : null,
-                  precedence: Number(vals.precedence) || 0,
                 });
                 setShowEditRole(false);
               }}
@@ -519,20 +463,6 @@ export default function RolesPage() {
                 label="Description"
                 defaultValue={selectedRole.description}
                 placeholder="Optional"
-              />
-              <FormInput
-                fieldName="entraAppRole"
-                label="Entra App Role value"
-                defaultValue={selectedRole.entraAppRole ?? ""}
-                placeholder="e.g. ClaimsReviewLead (optional)"
-                helperText="Must exactly match the Value field of an App Role in the Azure app registration, case-sensitive. Clear this to stop auto-assigning this role from Microsoft SSO."
-              />
-              <FormInput
-                fieldName="precedence"
-                type="number"
-                label="Precedence"
-                defaultValue={selectedRole.precedence}
-                helperText="If a user's Microsoft roles claim matches more than one mapped role, the higher precedence wins."
               />
             </FormPanel>
           </DialogContent>

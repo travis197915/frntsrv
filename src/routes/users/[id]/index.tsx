@@ -1,20 +1,14 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import SidebarLayout from "@/layouts/SidebarLayout";
 import Loader from "@/components/Loader";
 import { ErrorAlert } from "@/components/ErrorAlert";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/utils/utils";
-import { useAuth } from "@/contexts/AuthContext";
-import { usersClient, rolesClient } from "@/lib/clients";
+import { usersClient } from "@/lib/clients";
 import StatusBadge from "@/components/StatusBadge";
-import type { AclRole } from "@/interfaces/acl";
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
 
   const {
     isLoading: loading,
@@ -35,28 +29,7 @@ export default function UserDetailPage() {
     enabled: !!id,
   });
 
-  const { data: roles } = useQuery({
-    queryKey: ["roles"],
-    queryFn: () => rolesClient.get<AclRole[]>("/"),
-  });
 
-  const { mutate: updateRole, isPending: roleLoading } = useMutation({
-    mutationFn: ({ uid, role }: { uid: string; role: string }) =>
-      usersClient.patch(`/${uid}/role`, { role }),
-    onSuccess: (_data, { uid }) => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["users", uid] });
-    },
-  });
-
-  const { mutate: updateStatus, isPending: statusLoading } = useMutation({
-    mutationFn: ({ uid, isActive }: { uid: string; isActive: boolean }) =>
-      usersClient.patch(`/${uid}/status`, { isActive }),
-    onSuccess: (_data, { uid }) => {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["users", uid] });
-    },
-  });
 
   if (!id) return null;
 
@@ -84,12 +57,6 @@ export default function UserDetailPage() {
       </SidebarLayout>
     );
   }
-
-  // Falls back to the user's current role if the roles list hasn't loaded
-  // yet, so the <select> always has a valid selected option.
-  const roleOptions = roles?.length
-    ? [...new Set([...roles.map((r) => r.name), user.role])]
-    : [user.role];
 
   return (
     <SidebarLayout
@@ -146,68 +113,6 @@ export default function UserDetailPage() {
             </div>
           </dl>
         </div>
-
-        {isAdmin && (
-          <>
-            <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-              <h2 className="text-sm font-semibold text-foreground">Update role</h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
-                  value={user.role}
-                  disabled={roleLoading}
-                  onChange={(e) =>
-                    updateRole({
-                      uid: user.id,
-                      role: e.target.value,
-                    })
-                  }
-                >
-                  {roleOptions.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                {roleLoading && (
-                  <span className="text-xs text-muted-foreground">Saving…</span>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-              <h2 className="text-sm font-semibold text-foreground">
-                Update status
-              </h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  className="flex h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground min-w-[160px]"
-                  value={user.isActive ? "active" : "inactive"}
-                  disabled={statusLoading}
-                  onChange={(e) =>
-                    updateStatus({
-                      uid: user.id,
-                      isActive: e.target.value === "active",
-                    })
-                  }
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-                {statusLoading && (
-                  <span className="text-xs text-muted-foreground">Saving…</span>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
-        <Link
-          to="/users"
-          className={cn(buttonVariants({ variant: "outline" }))}
-        >
-          Done
-        </Link>
       </div>
     </SidebarLayout>
   );
