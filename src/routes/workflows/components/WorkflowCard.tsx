@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle, Wrench } from 'lucide-react';
+import { ArrowRight, Trash2, Clock, MoreVertical, CheckCircle2, XCircle, AlertCircle, Wrench, FileDiff } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ interface WorkflowCardProps {
   createdAt?: string | null;
   updatedAt?: string | null;
   needsTools?: boolean;
+  hasSopUpdate?: boolean;
   onDuplicate?: () => void;
   onDelete?: () => void;
   disableActions?: boolean;
@@ -126,6 +127,7 @@ export default function WorkflowCard({
   config,
   updatedAt,
   needsTools,
+  hasSopUpdate,
   onDelete,
   disableActions,
 }: WorkflowCardProps) {
@@ -167,6 +169,15 @@ export default function WorkflowCard({
           <Wrench className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
           <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
             Auto-built · add tool calls to nodes
+          </span>
+        </div>
+      )}
+
+      {!isRunning && hasSopUpdate && (
+        <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 dark:border-amber-800 dark:bg-amber-950/40">
+          <FileDiff className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            SOP update waiting for review
           </span>
         </div>
       )}
