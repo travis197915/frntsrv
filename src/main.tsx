@@ -9,6 +9,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { TooltipProvider } from "./components/ui/tooltip";
 import AppRoutes from "./routes";
 import { validateRuntimeConfig } from "./lib/runtimeConfig";
+import { SopNotificationProvider } from "./features/sop-notifications/SopNotificationProvider";
 
 // Validate required runtime environment variables before app starts
 try {
@@ -41,9 +42,11 @@ createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            <TooltipProvider delayDuration={400}>
-              <AppRoutes />
-            </TooltipProvider>
+            <SopNotificationProvider>
+              <TooltipProvider delayDuration={400}>
+                <AppRoutes />
+              </TooltipProvider>
+            </SopNotificationProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

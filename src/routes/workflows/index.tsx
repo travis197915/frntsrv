@@ -14,10 +14,12 @@ import {
 } from '@/lib/api';
 import WorkflowCard from './components/WorkflowCard';
 import CreateWorkflowDialog from './components/CreateWorkflowDialog';
+import { useSopNotifications } from '@/features/sop-notifications/SopNotificationProvider';
 
 export default function WorkflowsPage() {
   const navigate = useNavigate();
   const { canWrite } = useAuth();
+  const { pendingNotifications } = useSopNotifications();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newWorkflowName, setNewWorkflowName] = useState('');
@@ -173,6 +175,12 @@ export default function WorkflowsPage() {
               config={wf.config}
               updatedAt={wf.updatedAt}
               needsTools={Boolean(wf.metadata?.needs_tools)}
+              hasSopUpdate={pendingNotifications.some(
+                (notification) =>
+                  notification.workflowId === wf.id ||
+                  notification.workflowName.toLowerCase() ===
+                    String(wf.name ?? '').toLowerCase(),
+              )}
               onDuplicate={canWrite ? () => void handleDuplicateWorkflow(wf.id) : undefined}
               onDelete={canWrite ? () => void handleDeleteWorkflow(wf.id) : undefined}
               disableActions={!canWrite}

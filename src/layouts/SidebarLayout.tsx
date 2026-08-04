@@ -7,6 +7,7 @@ import { getRoleLabel } from '@/utils/user';
 import { PlatformSection } from '@/components/Sidebar';
 import { ThemeToggleButton } from '@/components/ThemeToggleButton';
 import { runtimeEnv } from '@/lib/runtimeConfig';
+import SopNotificationBell from '@/features/sop-notifications/SopNotificationBell';
 
 // Client branding — runtime /config.js overrides Vite bake-in
 const CLIENT_NAME = runtimeEnv(
@@ -102,7 +103,8 @@ function SidebarNav({ onNavClick }: { onNavClick: () => void }) {
 
       {/* User badge + theme toggle at bottom */}
       <div className="border-t border-border p-3 shrink-0 space-y-2">
-        <div className="flex items-center justify-end px-1">
+        <div className="flex items-center gap-2 px-1">
+          <SopNotificationBell />
           <ThemeToggleButton />
         </div>
         <UserBadge />
@@ -152,6 +154,9 @@ export default function SidebarLayout({ children, title, subtitle }: SidebarLayo
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-sm font-semibold truncate">{title || CLIENT_NAME}</span>
+          <div className="ml-auto">
+            <SopNotificationBell compact />
+          </div>
         </div>
 
         {/* Scrollable page content */}
