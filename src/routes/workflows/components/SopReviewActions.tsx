@@ -20,6 +20,11 @@ export function canReviewSopVersion(version?: BuilderSopVersion | null): boolean
   if (version.activation_status === 'rejected') return false;
   if (version.activation_status === 'active') return false;
   if (version.activation_status === 'superseded') return false;
+  // A version owned by an open change set is adopted by approving that batch,
+  // which is what repoints the canvas. Activating it here would flip the badges
+  // to "Current / Approved" while the canvas kept executing the old version —
+  // so the card offers "Review changes" instead of Approve/Reject.
+  if (version.change_set) return false;
   return true;
 }
 

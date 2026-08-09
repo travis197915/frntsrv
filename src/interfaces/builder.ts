@@ -72,12 +72,83 @@ export interface DashboardWidget {
 
 // ── Builder workflow types (Django) ─────────────────────────────────────────
 
+/**
+ * The change set that owns a pending SOP version.
+ *
+ * A version raised by a workflow upload is adopted by approving its change
+ * set — that is what repoints the canvas. The document-level activate/reject
+ * buttons bypass the rollout, which would leave the badges saying "current"
+ * while the canvas still ran the old version.
+ */
+export interface BuilderSopChangeSet {
+  id: number;
+  status: string;
+  proposal_count: number;
+}
+
 export interface BuilderSopVersion {
   activation_status: string | null;
   is_current: boolean;
   version_number: number;
   current_sop_id: number | null;
   is_approved: boolean;
+  change_set?: BuilderSopChangeSet | null;
+}
+
+/** What the rollout will do to one bound rule if this version is approved. */
+export interface SopVersionPreviewRule {
+  action: 'repoint' | 'drop' | 'strand';
+  new_rule_key: string | null;
+  condition: string;
+  action_text: string;
+  refreshed: boolean;
+  preserved: boolean;
+}
+
+export interface SopVersionPreviewNode {
+  label: string;
+  workbench: string;
+  order: number;
+}
+
+export interface SopVersionPreviewUnplaced {
+  rule_key: string;
+  step_number: number;
+  row_index: number;
+  subrule_id: string;
+  condition: string;
+  action: string;
+}
+
+/**
+ * A projection of the canvas onto one SOP version.
+ *
+ * `projected` is false for the version the workflow is already running — the
+ * live canvas already *is* that version, so there is nothing to overlay.
+ */
+export interface SopVersionPreview {
+  workflow_id: string;
+  sop_id: number;
+  version_number: number;
+  activation_status: string | null;
+  is_current: boolean;
+  readonly: boolean;
+  projected: boolean;
+  from_sop_id?: number;
+  from_version_number?: number;
+  change_set: BuilderSopChangeSet | null;
+  shapes: Record<string, SopVersionPreviewNode>;
+  rules: Record<string, Record<string, SopVersionPreviewRule>>;
+  unplaced: SopVersionPreviewUnplaced[];
+  report: {
+    repointed: number;
+    refreshed: number;
+    preserved: number;
+    dropped: number;
+    stranded: number;
+    unplaced_count: number;
+  } | null;
+  detail?: string;
 }
 
 export interface BuilderSopStatus {

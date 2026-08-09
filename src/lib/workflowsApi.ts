@@ -18,6 +18,7 @@ import type {
   BuilderConnection,
   BuilderGraph,
   BuilderWorkflow,
+  SopVersionPreview,
 } from "../interfaces/builder";
 import type {
   BuildStatus,
@@ -545,6 +546,22 @@ export const workflowsApi = {
   ): Promise<WorkflowAttachable> {
     return builderClient.get<WorkflowAttachable>(
       `/workflows/${id}/attachable/?sop_id=${sopId}`,
+    );
+  },
+
+  /**
+   * Project this workflow's canvas onto one SOP version.
+   *
+   * A pending version has no canvas of its own — nothing is bound to it until
+   * its change set is approved — so the server returns an overlay describing
+   * what approval would do, computed by the same planner approval runs.
+   */
+  async getVersionPreview(
+    id: string,
+    sopId: number,
+  ): Promise<SopVersionPreview> {
+    return builderClient.get<SopVersionPreview>(
+      `/workflows/${id}/version-preview/?sop_id=${sopId}`,
     );
   },
 

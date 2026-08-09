@@ -12,11 +12,8 @@ export default function SopNotificationBell({
 }: {
   compact?: boolean;
 }) {
-  const {
-    pendingNotifications,
-    unreadCount,
-    reviewNotification,
-  } = useSopNotifications();
+  const { pendingNotifications, unreadCount, isLoading, openNotification } =
+    useSopNotifications();
 
   return (
     <Popover>
@@ -62,7 +59,7 @@ export default function SopNotificationBell({
               <button
                 key={notification.id}
                 type="button"
-                onClick={() => reviewNotification(notification.id)}
+                onClick={() => openNotification(notification.id)}
                 className="group flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors last:border-0 hover:bg-muted/50"
               >
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
@@ -73,17 +70,24 @@ export default function SopNotificationBell({
                     <span className="truncate text-xs font-semibold">
                       {notification.workflowName}
                     </span>
-                    {notification.unread && (
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                    )}
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                   </span>
                   <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
                     {notification.sopTitle} · v{notification.fromVersion} → v
                     {notification.toVersion}
                   </span>
                   <span className="mt-1 block text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                    {notification.changes.length} rules changed
+                    {notification.ruleCount} rules changed
+                    {notification.summary.added > 0 &&
+                      ` · ${notification.summary.added} new`}
+                    {notification.summary.removed > 0 &&
+                      ` · ${notification.summary.removed} removed`}
                   </span>
+                  {notification.stale && (
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                      SOP moved since this opened — needs re-diffing
+                    </span>
+                  )}
                 </span>
               </button>
             ))}
@@ -91,7 +95,9 @@ export default function SopNotificationBell({
         ) : (
           <div className="px-4 py-8 text-center">
             <Bell className="mx-auto h-5 w-5 text-muted-foreground/50" />
-            <p className="mt-2 text-xs font-medium">No changes waiting</p>
+            <p className="mt-2 text-xs font-medium">
+              {isLoading ? 'Checking…' : 'No changes waiting'}
+            </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               Reviewed SOP revisions will clear from this list.
             </p>
