@@ -3,6 +3,7 @@ import {
   FileText,
   Globe,
   Plus,
+  Layers,
   Network,
   Loader2,
   CheckCircle2,
@@ -27,10 +28,12 @@ import {
   type WorkflowSop,
 } from '@/lib/workflowsApi';
 import SopGraphDialog from './SopGraphDialog';
+import SopVersionPreviewPanel from './SopVersionPreviewPanel';
 import AddSopsDialog from './AddSopsDialog';
 import SopReconcileDialog from './SopReconcileDialog';
 import SopReviewActions from './SopReviewActions';
 import SopVersionBadges from './SopVersionBadges';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/utils/utils';
 
 type SopTab = 'queued' | 'completed' | 'failed';
@@ -127,11 +130,13 @@ function SopListItem({
   canWrite,
   onOpenGraph,
   onReviewComplete,
+  onViewVersion,
 }: {
   sop: WorkflowSop;
   canWrite: boolean;
   onOpenGraph: (sop: WorkflowSop) => void;
   onReviewComplete: () => void;
+  onViewVersion: (sop: WorkflowSop) => void;
 }) {
   const canOpenGraph = sop.status === 'COMPLETED' || sop.status === 'PARTIAL';
 
@@ -172,6 +177,23 @@ function SopListItem({
         </p>
       </button>
       <SopVersionBadges version={sop.sop_version} className="mt-1.5 ml-4" />
+      {canOpenGraph && sop.audit_sop_id != null && (
+        <button
+          type="button"
+          onClick={() => onViewVersion(sop)}
+          className={cn(
+            'mt-1.5 ml-4 inline-flex items-center gap-1 text-[10px] font-medium transition-colors',
+            sop.sop_version?.change_set
+              ? 'text-amber-700 hover:text-amber-900 dark:text-amber-400'
+              : 'text-muted-foreground hover:text-primary',
+          )}
+        >
+          <Layers className="h-2.5 w-2.5" />
+          {sop.sop_version?.change_set
+            ? `Review ${sop.sop_version.change_set.proposal_count} rule changes`
+            : 'View this version'}
+        </button>
+      )}
       <SopReviewActions
         sopId={sop.audit_sop_id}
         version={sop.sop_version}
@@ -199,6 +221,26 @@ export default function WorkflowContextPanel({
 }: WorkflowContextPanelProps) {
   const [adding, setAdding] = useState<'sop' | 'agent' | null>(null);
   const [graphSop, setGraphSop] = useState<WorkflowSop | null>(null);
+  const [versionSop, setVersionSop] = useState<WorkflowSop | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // `?review=<sop_id>` arrives from the notification bell. Derived rather than
+  // pushed into state by an effect, so landing on the URL opens the panel on
+  // the first render instead of after a second pass.
+  const reviewParam = searchParams.get('review');
+  const requestedVersionSop = reviewParam
+    ? (sops.find((s) => String(s.audit_sop_id) === reviewParam) ?? null)
+    : null;
+  const activeVersionSop = versionSop ?? requestedVersionSop;
+
+  const closeVersionPanel = useCallback(() => {
+    setVersionSop(null);
+    if (searchParams.has('review')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('review');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [newAgent, setNewAgent] = useState<RuntimeAgentInput>({
     name: '', url: '', method: 'GET', auth_type: 'none', auth_token: '',
   });
@@ -317,6 +359,7 @@ export default function WorkflowContextPanel({
                     canWrite={canWrite}
                     onOpenGraph={setGraphSop}
                     onReviewComplete={onAttached}
+                    onViewVersion={setVersionSop}
                   />
                 ))}
               </ul>
@@ -433,6 +476,16 @@ export default function WorkflowContextPanel({
           </ul>
         )}
       </section>
+
+      {activeVersionSop?.audit_sop_id != null && (
+        <SopVersionPreviewPanel
+          workflowId={workflowId}
+          sopId={activeVersionSop.audit_sop_id}
+          versionLabel={`v${activeVersionSop.sop_version?.version_number ?? '?'} · ${shortenUrl(activeVersionSop.seed_url)}`}
+          onClose={closeVersionPanel}
+          onReviewed={onAttached}
+        />
+      )}
 
       <SopGraphDialog
         open={!!graphSop}
