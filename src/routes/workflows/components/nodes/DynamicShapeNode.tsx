@@ -181,17 +181,22 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
   // Auditor's manual per-node exclusion (set in ConfigPanel). Takes visual
   // precedence and greys the node out — the execution engine skips it entirely.
   const manualOos = props.manual_out_of_scope === true;
+  // Auditor's manual per-node NOT-APPLICABLE (set in ConfigPanel). A non-scoring
+  // gate: every rule renders NOT_APPLICABLE in execution (never a finding).
+  const manualNa = props.manual_not_applicable === true;
   const fullyOos = props.is_out_of_scope === true;
   const oosCount = Number(props.oos_rule_count ?? 0);
   const ruleCount = Number(props.rule_count ?? 0);
-  const partialOos = !manualOos && !fullyOos && oosCount > 0;
-  const oosLabel = manualOos
-    ? 'Excluded'
-    : fullyOos
-      ? 'Out of Scope'
-      : partialOos
-        ? `Out of Scope ${oosCount}/${ruleCount}`
-        : '';
+  const partialOos = !manualOos && !manualNa && !fullyOos && oosCount > 0;
+  const oosLabel = manualNa
+    ? 'Not Applicable'
+    : manualOos
+      ? 'Excluded'
+      : fullyOos
+        ? 'Out of Scope'
+        : partialOos
+          ? `Out of Scope ${oosCount}/${ruleCount}`
+          : '';
 
   // A diamond's inscribed (text-safe) area is far smaller than its bounding
   // box — text centered at 85% width spills past the slanted edges. Tighten the
@@ -238,15 +243,15 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'default',
-          opacity: manualOos ? 0.55 : 1,
+          opacity: manualOos || manualNa ? 0.55 : 1,
           filter: selected ? `drop-shadow(0 0 3px ${accent}66)` : 'drop-shadow(0 1px 3px rgba(0,0,0,0.1))',
         }}
       >
         <ShapeSvg
           w={w}
           h={h}
-          fill={manualOos ? '#f1f5f9' : fullyOos ? '#fef2f2' : bg}
-          stroke={manualOos ? '#94a3b8' : fullyOos ? '#f87171' : border}
+          fill={manualNa ? '#fffbeb' : manualOos ? '#f1f5f9' : fullyOos ? '#fef2f2' : bg}
+          stroke={manualNa ? '#f59e0b' : manualOos ? '#94a3b8' : fullyOos ? '#f87171' : border}
           sw={sw}
         />
 
@@ -270,7 +275,7 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
                   lineHeight: 1.6,
                   whiteSpace: 'nowrap',
                   color: '#fff',
-                  background: manualOos ? '#475569' : fullyOos ? '#e11d48' : '#d97706',
+                  background: manualNa ? '#f59e0b' : manualOos ? '#475569' : fullyOos ? '#e11d48' : '#d97706',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
                   textTransform: 'uppercase',
                 }}
@@ -279,7 +284,9 @@ export function DynamicShapeNode({ data, selected, width, height }: NodeProps<Dy
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[240px] text-center">
-              {manualOos
+              {manualNa
+                ? 'Manually marked not applicable — every rule on this node renders NOT APPLICABLE in execution (no LLM call, never a finding). Other steps still run independently.'
+                : manualOos
                 ? 'Manually excluded from the execution engine — every rule on this node is skipped and the rest of the workflow continues.'
                 : fullyOos
                   ? 'This step is a clean exclusion — auditing stops on this path; no defect is raised.'

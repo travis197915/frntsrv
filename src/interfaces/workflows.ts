@@ -148,6 +148,14 @@ export interface AttachedSopRule {
    * `manual_out_of_scope`.
    */
   manual_in_scope?: boolean;
+  /**
+   * Auditor's manual "not applicable" toggle for THIS rule / sub-rule. A SEPARATE
+   * scope axis from out-of-scope: a non-scoring routing gate that the execution
+   * engine skips deterministically (renders NOT_APPLICABLE, never a finding,
+   * never halts the SOP). Persisted via `manual_na_rule_keys` so it round-trips
+   * and is honored by the engine. Nothing is hardcoded — purely this toggle.
+   */
+  manual_not_applicable?: boolean;
   condition: string;
   action: string;
   decision_type: string;

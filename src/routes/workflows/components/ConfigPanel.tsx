@@ -3,7 +3,7 @@ import yaml from "js-yaml";
 import {
   Trash2, Layers, Sparkles, Ban, Info, Network,
   Code2, ListTree, Settings2, Wrench, ChevronRight,
-  ArrowRight, FileText, GitBranch, Plus, Save,
+  ArrowRight, FileText, GitBranch, Plus, Save, CircleSlash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -339,6 +339,26 @@ function RulesOnlyPanel({
       tools,
     );
   };
+  const toggleRuleNa = (key: string, nextNa: boolean) => {
+    if (readOnly) return;
+    // Not-applicable is a SEPARATE axis from out-of-scope: a non-scoring routing
+    // gate the engine skips deterministically (renders NOT_APPLICABLE, never a
+    // finding, never halts the SOP). The backend recomputes `manual_na_rule_keys`
+    // from this per-rule flag on save and re-emits it on load. Marking NA clears
+    // any force-in-scope override so the two don't fight.
+    onChange(
+      rules.map((r) =>
+        r.key === key
+          ? {
+              ...r,
+              manual_not_applicable: nextNa,
+              ...(nextNa ? { manual_in_scope: false } : {}),
+            }
+          : r,
+      ),
+      tools,
+    );
+  };
   const removeTool = (key: string) => {
     if (readOnly) return;
     onChange(rules, tools.filter((t) => toolPickKey(t) !== key));
@@ -413,6 +433,7 @@ function RulesOnlyPanel({
                     onMoveDown={readOnly || i >= rules.length - 1 ? undefined : () => moveRule(r.key, "down")}
                     onContextChange={readOnly ? undefined : updateRuleContext}
                     onToggleOutOfScope={readOnly ? undefined : toggleRuleOos}
+                    onToggleNotApplicable={readOnly ? undefined : toggleRuleNa}
                   />
                 );
               })}
@@ -488,10 +509,10 @@ function RulesOnlyPanel({
 
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ node, def, onUpdate, readOnly, manualOos, props }: {
+function OverviewTab({ node, def, onUpdate, readOnly, manualOos, manualNa, props }: {
   node: WorkflowNode; def?: ShapeDefinition;
   onUpdate: (nodeId: string, updates: Partial<WorkflowNodeData>) => void;
-  readOnly: boolean; manualOos: boolean; props: Record<string, unknown>;
+  readOnly: boolean; manualOos: boolean; manualNa: boolean; props: Record<string, unknown>;
 }) {
   const data = node.data as WorkflowNodeData;
   const isWorkArea = data.nodeType === "workarea";
@@ -577,6 +598,24 @@ function OverviewTab({ node, def, onUpdate, readOnly, manualOos, props }: {
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
                 Execution engine skips every rule on this node (no LLM call) and continues with the rest of the workflow.
+              </p>
+            </div>
+          </label>
+          <label className={`mt-2 flex items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+            manualNa ? "border-amber-500/40 bg-amber-500/8" : "border-border bg-muted/30"
+          } ${readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:bg-muted/50"}`}>
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-amber-500 shrink-0"
+              checked={manualNa} disabled={readOnly}
+              onChange={(e) => onUpdate(node.id, {
+                properties: { ...props, manual_not_applicable: e.target.checked },
+              } as unknown as Partial<WorkflowNodeData>)} />
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-medium">
+                <CircleSlash className={`h-3.5 w-3.5 ${manualNa ? "text-amber-500" : "text-muted-foreground"}`} />
+                Mark not applicable
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                Every rule on this node renders NOT APPLICABLE in execution (no LLM call, never a finding). Other steps still run independently.
               </p>
             </div>
           </label>
@@ -1129,6 +1168,7 @@ export default function ConfigPanel({
   const attachedRules = (props.sop_rules as AttachedSopRule[] | undefined) ?? [];
   const attachedTools = (props.tool_calls as AttachedTool[] | undefined) ?? [];
   const manualOos = props.manual_out_of_scope === true;
+  const manualNa = props.manual_not_applicable === true;
 
   const sopId = props.sop_id != null ? Number(props.sop_id) : null;
   const stepNumber = props.step_number != null ? Number(props.step_number) : null;
@@ -1210,7 +1250,7 @@ export default function ConfigPanel({
           {activeTab === "overview" && (
             <OverviewTab
               node={node} def={def} onUpdate={onUpdate} readOnly={readOnly}
-              manualOos={manualOos} props={props}
+              manualOos={manualOos} manualNa={manualNa} props={props}
             />
           )}
 

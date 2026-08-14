@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban, Eye } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban, Eye, CircleSlash, CircleDot } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
 import AdditionalContextDialog from "./AdditionalContextDialog";
@@ -13,6 +13,8 @@ interface AttachedRuleCardProps {
   onContextChange?: (key: string, context: string) => void;
   /** Toggle the manual out-of-scope flag for this rule / sub-rule / sub-sub-rule. */
   onToggleOutOfScope?: (key: string, next: boolean) => void;
+  /** Toggle the manual not-applicable flag (non-scoring gate; skipped in execution). */
+  onToggleNotApplicable?: (key: string, next: boolean) => void;
   /** Open the inline form to add a sub-rule nested under this rule. */
   onAddSubRule?: (parentKey: string) => void;
   readOnly?: boolean;
@@ -31,6 +33,7 @@ export default function AttachedRuleCard({
   onMoveDown,
   onContextChange,
   onToggleOutOfScope,
+  onToggleNotApplicable,
   onAddSubRule,
   readOnly = false,
   depth = 0,
@@ -44,12 +47,22 @@ export default function AttachedRuleCard({
   // OR manual, minus any force-in-scope override). Drive the UI off it so an
   // ingestion-flagged out-of-scope rule can be toggled back into scope too.
   const outOfScope = !!rule.is_out_of_scope;
+  // Not-applicable is a SEPARATE scope axis from out-of-scope: a non-scoring
+  // routing gate that the engine skips deterministically (renders NOT_APPLICABLE)
+  // without ever producing a finding. Purely driven by this toggle.
+  const notApplicable = !!rule.manual_not_applicable;
   return (
     <li
       style={{ marginLeft: depth > 0 ? depth * 16 : undefined }}
       className={`border rounded p-2 ${
         depth > 0 ? "border-l-2 border-l-indigo-300 border-border/60" : "border-border"
-      } ${outOfScope ? "bg-rose-50/60 border-rose-200" : "bg-muted/30"}`}
+      } ${
+        notApplicable
+          ? "bg-amber-50/60 border-amber-200"
+          : outOfScope
+            ? "bg-rose-50/60 border-rose-200"
+            : "bg-muted/30"
+      }`}
     >
       <div className="flex items-start gap-2">
         {/* Sequence badge + reorder controls */}
@@ -94,6 +107,16 @@ export default function AttachedRuleCard({
                 Out of scope
               </span>
             )}
+            {notApplicable && (
+              <span className="text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                Not applicable
+              </span>
+            )}
+            {hasContext && (
+              <span className="text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">
+                Modified
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground truncate">
               {rule.section_label}
             </span>
@@ -134,12 +157,78 @@ export default function AttachedRuleCard({
               )}
             </>
           )}
+
+          {/* Original (SOP) vs Updated (auditor context) — always visible per rule
+              when the rule has been modified, so the change is auditable inline. */}
+          {hasContext && (
+            <div className="mt-2 rounded border border-indigo-200 overflow-hidden">
+              <div className="px-2 py-1 bg-slate-100/70 border-b border-slate-200">
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                  Original rule (from SOP)
+                </span>
+                {rule.condition && (
+                  <p className="text-[11px] leading-snug text-slate-600">
+                    <span className="text-muted-foreground">If </span>
+                    {rule.condition}
+                  </p>
+                )}
+                {rule.action && (
+                  <p className="text-[11px] leading-snug text-slate-600">
+                    <span className="text-muted-foreground">Then </span>
+                    {rule.action}
+                  </p>
+                )}
+                {!rule.condition && !rule.action && (
+                  <p className="text-[11px] leading-snug italic text-muted-foreground">
+                    {rule.section_label || rule.key}
+                  </p>
+                )}
+              </div>
+              <div className="px-2 py-1 bg-indigo-50/50 border-l-2 border-l-indigo-400">
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-indigo-600">
+                  Updated — auditor context added
+                </span>
+                <p className="text-[11px] leading-snug whitespace-pre-wrap text-indigo-900">
+                  {rule.additional_context}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Labeled action bar — explicit buttons instead of tiny icons */}
-      {(onToggleOutOfScope || onRemove || onAddSubRule || onContextChange || hasContext) && (
+      {(onToggleOutOfScope || onToggleNotApplicable || onRemove || onAddSubRule || onContextChange || hasContext) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {onToggleNotApplicable && (
+            <button
+              type="button"
+              onClick={() => onToggleNotApplicable(rule.key, !notApplicable)}
+              aria-pressed={notApplicable}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-medium transition-colors ${
+                notApplicable
+                  ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  : "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+              }`}
+              title={
+                notApplicable
+                  ? "Make this step applicable again (it will be evaluated)"
+                  : "Mark this step not applicable — the engine skips it (NOT_APPLICABLE), never a finding"
+              }
+            >
+              {notApplicable ? (
+                <>
+                  <CircleDot className="h-3 w-3" />
+                  Mark applicable
+                </>
+              ) : (
+                <>
+                  <CircleSlash className="h-3 w-3" />
+                  Mark not applicable
+                </>
+              )}
+            </button>
+          )}
           {onToggleOutOfScope && (
             <button
               type="button"
