@@ -19,6 +19,7 @@ import type {
   BuilderGraph,
   BuilderWorkflow,
   SopVersionPreview,
+  WorkflowVersion,
 } from "../interfaces/builder";
 import type {
   BuildStatus,
@@ -60,6 +61,8 @@ export type {
   BuilderShape,
   BuilderWorkArea,
   BuilderWorkbench,
+  WorkflowVersion,
+  WorkflowVersionSop,
 } from "../interfaces/builder";
 
 // ── Public types ───────────────────────────────────────────────────────────
@@ -82,6 +85,10 @@ export interface SopColumn {
   /** Auditor-provided free-form context for this SOP, injected into the engine
    *  at execution time (Workbench.config.extra_context). */
   extra_context: string;
+  /** Content version of this Workbench slot — bumps only when the bound SOP's
+   *  content actually changes and a new column row is appended in its place.
+   *  Distinct from the SOP-document version_number shown elsewhere. */
+  version: number;
 }
 
 export interface WorkbenchContextResponse {
@@ -214,6 +221,7 @@ function toSummary(wf: BuilderWorkflow): WorkflowSummary {
     sops: wf.sops ?? [],
     agents: wf.attached_agents ?? [],
     metadata: wf.metadata ?? {},
+    version: wf.version,
   };
 }
 
@@ -666,6 +674,18 @@ export const workflowsApi = {
   /** Ordered SOP columns (workbenches) of a workflow. */
   async sopColumns(id: string): Promise<SopColumn[]> {
     return builderClient.get<SopColumn[]>(`/workflows/${id}/sop-order/`);
+  },
+
+  /** Full workflow-version history (frozen SOP composition snapshots), newest first. */
+  async versions(id: string): Promise<WorkflowVersion[]> {
+    return builderClient.get<WorkflowVersion[]>(`/workflows/${id}/versions/`);
+  },
+
+  /** One frozen WorkflowVersion snapshot. 404s if versionNumber doesn't exist. */
+  async versionDetail(id: string, versionNumber: number): Promise<WorkflowVersion> {
+    return builderClient.get<WorkflowVersion>(
+      `/workflows/${id}/versions/${versionNumber}/`,
+    );
   },
 
   /**

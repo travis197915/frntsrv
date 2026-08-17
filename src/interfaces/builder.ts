@@ -95,6 +95,26 @@ export interface BuilderSopVersion {
   change_set?: BuilderSopChangeSet | null;
 }
 
+/** One SOP slot inside a frozen WorkflowVersion snapshot. */
+export interface WorkflowVersionSop {
+  node_key: string;
+  order: number;
+  sop_title: string;
+  audit_sop_id: number;
+  sop_version_number: number;
+  workbench_id: string;
+  workbench_version: number;
+}
+
+/** A frozen snapshot of a workflow's SOP composition — one row from
+ *  GET /workflows/{id}/versions/ or GET /workflows/{id}/versions/{n}/. */
+export interface WorkflowVersion {
+  workflow_version: number;
+  created_at: string;
+  reason: string;
+  sops: WorkflowVersionSop[];
+}
+
 /** What the rollout will do to one bound rule if this version is approved. */
 export interface SopVersionPreviewRule {
   action: 'repoint' | 'drop' | 'strand';
@@ -183,6 +203,11 @@ export interface BuilderWorkflow {
   owner_email: string;
   created_at: string;
   updated_at: string;
+  /** Bumped whenever any Workbench under this workflow gets a content version
+   *  bump (a SOP's bound content changed and a new Workbench row was
+   *  appended). Distinct from `BuilderSopVersion.version_number`, which is a
+   *  per-SOP-document revision count. */
+  version: number;
   sops?: BuilderSopStatus[];
   attached_agents?: BuilderAttachedAgent[];
 }
@@ -214,6 +239,15 @@ export interface BuilderWorkbench {
   width: number;
   height: number;
   style: Record<string, unknown>;
+  /** Content version of this Workbench slot — bumps only when the SOP bound
+   *  to it actually changes and a new row is appended (old one kept, not
+   *  live). Independent of `BuilderSopVersion` (the SOP-document version). */
+  version: number;
+  /** False once superseded by a newer version of the same slot. The graph/
+   *  sop-order endpoints only ever return `is_current: true` rows, so this
+   *  is effectively always true here — kept for forward-compat with a future
+   *  history view. */
+  is_current: boolean;
   shapes: BuilderShape[];
 }
 

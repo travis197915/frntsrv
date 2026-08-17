@@ -13,6 +13,10 @@ interface SopGraphDialogProps {
   jobId: string;
   auditSopId: number | null;
   onClose: () => void;
+  /** Optional "<SOP title> — v<N>" shown under the header, e.g. when opened
+   *  from the workflow version history, so it's clear which SOP + version is
+   *  being viewed. Omitted at other call sites — header renders as before. */
+  versionLabel?: string;
 }
 
 export default function SopGraphDialog({
@@ -20,6 +24,7 @@ export default function SopGraphDialog({
   jobId,
   auditSopId,
   onClose,
+  versionLabel,
 }: SopGraphDialogProps) {
   if (!open) return null;
 
@@ -34,7 +39,12 @@ export default function SopGraphDialog({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-2 shrink-0 bg-card">
-          <h2 className="text-sm font-semibold">SOP Knowledge Graph</h2>
+          <div>
+            <h2 className="text-sm font-semibold">SOP Knowledge Graph</h2>
+            {versionLabel && (
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{versionLabel}</p>
+            )}
+          </div>
           <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8 shrink-0 ml-3">
             <X className="h-4 w-4" />
           </Button>

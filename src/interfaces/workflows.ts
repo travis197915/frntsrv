@@ -264,6 +264,10 @@ export interface WorkflowSummary {
   // Free-form server bag. Carries auto-build flags such as `needs_tools`,
   // `auto_build_canvas`, `auto_build_complete`, and `tool_prompt_shapes`.
   metadata?: Record<string, unknown>;
+  // Bumped whenever a Workbench under this workflow gets a content version
+  // bump. See BuilderWorkflow.version — distinct from any SOP-document
+  // version_number.
+  version?: number;
 }
 
 export interface NodeMeta {

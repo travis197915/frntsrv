@@ -45,6 +45,8 @@ import { nodeTypes } from "../components/nodes/nodeTypes";
 import NodePalette from "../components/NodePalette";
 import ConfigPanel from "../components/ConfigPanel";
 import WorkflowContextPanel from "../components/WorkflowContextPanel";
+import WorkflowVersionHistoryPanel from "../components/WorkflowVersionHistoryPanel";
+import WorkflowVersionCanvasLegend from "../components/WorkflowVersionCanvasLegend";
 import {
   ShapeCatalogProvider,
   useShapeCatalog,
@@ -200,6 +202,7 @@ function WorkflowBuilderInner() {
   const { canWrite } = useAuth();
   const ui = useWorkflowUiColors();
   const [isExecutionMode, setIsExecutionMode] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -366,6 +369,7 @@ function WorkflowBuilderInner() {
       status: wf.status ?? "idle",
       createdAt: wf.createdAt ?? "",
       updatedAt: wf.updatedAt ?? "",
+      version: wf.version,
     });
   }, [workflowData, loadFromJSON]);
 
@@ -585,6 +589,17 @@ function WorkflowBuilderInner() {
             status={isExecutionMode ? execution.status : workflowMeta.status}
           />
 
+          {workflowMeta.version != null && (
+            <button
+              type="button"
+              onClick={() => setShowVersionHistory(true)}
+              className="rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground cursor-pointer"
+              title="View workflow version history"
+            >
+              Workflow v{workflowMeta.version}
+            </button>
+          )}
+
           {isDirty && !isExecutionMode && (
             <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10">
               Unsaved
@@ -752,6 +767,10 @@ function WorkflowBuilderInner() {
                 className="bg-card! border-border! border shadow-sm! [&>button]:bg-background! [&>button]:border-border! [&>button]:text-muted-foreground! [&>button:hover]:bg-muted! [&>button]:fill-muted-foreground!"
               />
 
+              {!isExecutionMode && !isNew && id && (
+                <WorkflowVersionCanvasLegend workflowId={id} nodes={nodes} />
+              )}
+
               {!isCanvasLocked && selectedEdge && (
                 <EdgeInspector
                   edgeId={selectedEdge.id}
@@ -828,6 +847,14 @@ function WorkflowBuilderInner() {
             onSave={canWrite && !isNew ? saveWorkflow : undefined}
             isSaving={isSaving}
             isDirty={isDirty}
+          />
+        )}
+
+        {showVersionHistory && !isNew && id && (
+          <WorkflowVersionHistoryPanel
+            workflowId={id}
+            liveSops={workflowData?.workflow?.sops ?? []}
+            onClose={() => setShowVersionHistory(false)}
           />
         )}
       </ResizablePanelGroup>

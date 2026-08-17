@@ -51,6 +51,10 @@ export interface WorkflowMeta {
   status: string;
   createdAt?: string;
   updatedAt?: string;
+  // Overall workflow configuration version — bumps whenever any of its SOPs'
+  // canvas content changes. Distinct from a SOP's own "Canvas vN" (Workbench
+  // version), shown per-row in WorkflowContextPanel.
+  version?: number;
 }
 
 export const NODE_TYPE_CONFIG = {

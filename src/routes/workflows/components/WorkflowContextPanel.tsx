@@ -814,6 +814,14 @@ function SopContextRow({
             v{version}
           </span>
         )}
+        {col.version != null && (
+          <span
+            className="rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground"
+            title="Canvas version — bumps when this SOP's content changes and a new column is appended in its place (older versions are preserved, not shown here)"
+          >
+            Canvas v{col.version}
+          </span>
+        )}
         {col.sop_id != null && (
           <button
             type="button"
