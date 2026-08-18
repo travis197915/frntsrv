@@ -46,7 +46,6 @@ import NodePalette from "../components/NodePalette";
 import ConfigPanel from "../components/ConfigPanel";
 import WorkflowContextPanel from "../components/WorkflowContextPanel";
 import WorkflowVersionHistoryPanel from "../components/WorkflowVersionHistoryPanel";
-import WorkflowVersionCanvasLegend from "../components/WorkflowVersionCanvasLegend";
 import {
   ShapeCatalogProvider,
   useShapeCatalog,
@@ -766,10 +765,6 @@ function WorkflowBuilderInner() {
                 showInteractive={false}
                 className="bg-card! border-border! border shadow-sm! [&>button]:bg-background! [&>button]:border-border! [&>button]:text-muted-foreground! [&>button:hover]:bg-muted! [&>button]:fill-muted-foreground!"
               />
-
-              {!isExecutionMode && !isNew && id && (
-                <WorkflowVersionCanvasLegend workflowId={id} nodes={nodes} />
-              )}
 
               {!isCanvasLocked && selectedEdge && (
                 <EdgeInspector
