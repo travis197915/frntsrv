@@ -106,6 +106,30 @@ export interface WorkflowVersionSop {
   workbench_version: number;
 }
 
+/** One rule's frozen configuration within a WorkflowVersion snapshot — SOP-
+ *  derived (with or without a manual condition/action override) or fully
+ *  custom (`custom:{uuid}`, is_custom=true). */
+export interface WorkflowVersionRule {
+  shape_id: string;
+  shape_label: string;
+  workbench_id: string;
+  node_key: string;
+  rule_key: string;
+  is_custom: boolean;
+  condition: string;
+  action: string;
+  decision_type: string;
+  codes: string[];
+  subrule_id: string;
+  sop_id: number | null;
+  sop_title: string;
+  sop_version_number: number | null;
+  orphaned_from_rule_key: string;
+  orphaned_from_sop_id: number | null;
+  orphaned_reason: string;
+  ordering: number;
+}
+
 /** A frozen snapshot of a workflow's SOP composition — one row from
  *  GET /workflows/{id}/versions/ or GET /workflows/{id}/versions/{n}/. */
 export interface WorkflowVersion {
@@ -113,6 +137,7 @@ export interface WorkflowVersion {
   created_at: string;
   reason: string;
   sops: WorkflowVersionSop[];
+  rules: WorkflowVersionRule[];
 }
 
 /** What the rollout will do to one bound rule if this version is approved. */
@@ -168,6 +193,17 @@ export interface SopVersionPreview {
     stranded: number;
     unplaced_count: number;
   } | null;
+  detail?: string;
+}
+
+/** Result of starting a review batch that rolls this workflow onto a newer
+ *  SOP version — the on-demand counterpart to an ingestion-triggered
+ *  rollout, for a workflow whose bindings never got repointed automatically. */
+export interface SopVersionAdoptResult {
+  change_set_id: number | null;
+  from_sop_id?: number;
+  to_sop_id?: number;
+  proposal_count?: number;
   detail?: string;
 }
 

@@ -1,6 +1,6 @@
-import { Wrench } from "lucide-react";
+import { Wrench, Link2 } from "lucide-react";
 import { toolPickKey } from "@/utils/nodeAttachments";
-import type { AttachableSopRule, AttachableTool } from "@/interfaces/workflows";
+import type { AttachableSopRule, AttachableTool, AttachedSopRule } from "@/interfaces/workflows";
 
 interface ToolsTabProps {
   filteredTools: AttachableTool[];
@@ -10,6 +10,11 @@ interface ToolsTabProps {
   ruleByKey: Map<string, AttachableSopRule>;
   readOnly?: boolean;
   onToggleTool: (toolKey: string, ruleKey: string | null) => void;
+  /** Custom (non-SOP) rules already on this node — the "Source" jump-to-HTML
+   * focus flow only exists for SOP rules (SopRulesSidebar), so a custom rule
+   * needs its own way to become the tool-link target here. */
+  customRules?: AttachedSopRule[];
+  onFocusRef?: (key: string | null) => void;
 }
 
 export default function ToolsTab({
@@ -20,18 +25,45 @@ export default function ToolsTab({
   ruleByKey,
   readOnly = false,
   onToggleTool,
+  customRules = [],
+  onFocusRef,
 }: ToolsTabProps) {
+  const focusedCustomRule = focusedRefKey
+    ? customRules.find((r) => r.key === focusedRefKey)
+    : undefined;
   return (
     <div>
+      {customRules.length > 0 && onFocusRef && !readOnly && (
+        <div className="px-4 py-2 border-b border-border flex items-center gap-2">
+          <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <label className="text-[11px] text-muted-foreground shrink-0">
+            Link new tools to a custom rule on this node:
+          </label>
+          <select
+            value={focusedCustomRule ? focusedRefKey ?? "" : ""}
+            onChange={(e) => onFocusRef(e.target.value || null)}
+            className="flex-1 h-7 rounded-md border border-input bg-background px-1.5 text-[11px]"
+          >
+            <option value="">(none — unscoped tool)</option>
+            {customRules.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.subrule_id || r.section_label || r.condition?.slice(0, 40) || r.key}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {/* Hint banner when a rule is focused — explains the rule_binding linkage */}
-      {focusedRefKey && ruleByKey.has(focusedRefKey) && (
+      {focusedRefKey && (ruleByKey.has(focusedRefKey) || focusedCustomRule) && (
         <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-200 text-[11px] text-indigo-900 flex items-center gap-2">
           <Wrench className="h-3 w-3" />
           Tools you tick now will be linked to rule
           <code className="px-1 py-0.5 rounded bg-white/60 border border-indigo-200 text-[10px]">
             {focusedRefKey}
           </code>
-          (NodeToolBinding.rule_binding) on save.
+          {focusedCustomRule
+            ? "(custom rule — stored via a reserved args_template key) on save."
+            : "(NodeToolBinding.rule_binding) on save."}
         </div>
       )}
       <div className="divide-y divide-border">
@@ -53,7 +85,7 @@ export default function ToolsTab({
               onClick={() =>
                 onToggleTool(
                   pickKey,
-                  focusedRefKey && ruleByKey.has(focusedRefKey)
+                  focusedRefKey && (ruleByKey.has(focusedRefKey) || focusedCustomRule)
                     ? focusedRefKey
                     : null,
                 )

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import yaml from "js-yaml";
 import {
   Trash2, Layers, Sparkles, Ban, Info, Network,
   Code2, ListTree, Settings2, Wrench, ChevronRight,
-  ArrowRight, FileText, GitBranch, Plus, Save,
+  ArrowRight, FileText, GitBranch, Plus, Save, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,14 +19,29 @@ import { useShapeCatalog } from "./nodes/ShapeCatalogProvider";
 import type { ShapeDefinition, ShapePropertyField } from "@/lib/api";
 import GroupedToolsList from "./NodeAttachments/GroupedToolsList";
 import AttachedRuleCard from "./NodeAttachments/AttachedRuleCard";
+import CustomRuleForm from "./NodeAttachments/CustomRuleForm";
 import FullscreenAttachmentPicker from "./NodeAttachments/HtmlFullscreenPicker";
 import type { AttachedSopRule, AttachedTool, AttachableTool } from "@/interfaces/workflows";
 import type { BuilderSopStatus } from "@/interfaces/builder";
 import type { SopSectionsResponse, SopGraphResponse, SopGraphNode, SopGraphEdge } from "@/interfaces/sop";
 import { ingestApi } from "@/lib/api";
-import { workflowsApi } from "@/lib/workflowsApi";
+import { workflowsApi, type ProposeRuleChangeRequest } from "@/lib/workflowsApi";
+import {
+  canvasChangeSetKeys,
+  usePendingCanvasRuleKeys,
+} from "../hooks/useWorkflowRuleChangeSets";
 
 import { toolPickKey } from "@/utils/nodeAttachments";
+
+const EMPTY_PENDING_SET = new Set<string>();
+
+function readProposeError(e: unknown): string {
+  const body = (e as { body?: unknown })?.body;
+  if (body && typeof body === "object" && "detail" in body) {
+    return String((body as Record<string, unknown>).detail);
+  }
+  return (e as Error)?.message || "Could not propose this rule change.";
+}
 
 /** Map a catalog/attachable tool into the persisted node tool_calls shape. */
 function toAttachedTool(t: AttachableTool): AttachedTool {
@@ -234,9 +250,11 @@ function DynamicShapeInspector({ node, def, onUpdate, readOnly = false }: {
 // ── Rules-only panel (Rules & Tools tab) ─────────────────────────────────────
 
 function RulesOnlyPanel({
-  workflowId, rules, tools, onChange, readOnly, isWorkArea,
+  workflowId, nodeId, rules, tools, onChange, readOnly, isWorkArea,
 }: {
   workflowId?: string;
+  /** The Shape id this node persists to — required to propose a rule change. */
+  nodeId: string;
   rules: AttachedSopRule[];
   tools: AttachedTool[];
   onChange: (r: AttachedSopRule[], t: AttachedTool[]) => void;
@@ -244,6 +262,28 @@ function RulesOnlyPanel({
   isWorkArea: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [customFormOpen, setCustomFormOpen] = useState(false);
+  const [proposeError, setProposeError] = useState<string | null>(null);
+
+  // Rule content changes (add/edit/delete) go through the pending-review
+  // flow instead of being folded into the next canvas save — see
+  // builder.canvas_rule_changes on the backend. The canvas keeps showing the
+  // CURRENT (already-approved) rule; `pendingKeys` badges the ones with an
+  // open, unreviewed proposal so the auditor knows an edit is in flight.
+  const pendingByShape = usePendingCanvasRuleKeys(workflowId);
+  const pendingKeys = pendingByShape.get(nodeId) ?? EMPTY_PENDING_SET;
+
+  const queryClient = useQueryClient();
+  const proposeChange = useMutation({
+    mutationFn: (body: ProposeRuleChangeRequest) =>
+      workflowsApi.proposeRuleChange(workflowId as string, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: canvasChangeSetKeys.openForWorkflow(workflowId ?? ""),
+      });
+    },
+    onError: (e) => setProposeError(readProposeError(e)),
+  });
 
   // All tools available to attach (langchain + api_agent), loaded once.
   const [availableTools, setAvailableTools] = useState<AttachableTool[]>([]);
@@ -300,9 +340,22 @@ function RulesOnlyPanel({
     return out;
   }, [rules]);
 
+  // Rule content changes (add/edit/delete) are proposed, not applied
+  // locally — the canvas keeps showing the CURRENT rule (badged "Pending
+  // review" via `pendingKeys`) until the batch is approved. This is
+  // deliberately different from `moveRule`/`updateRuleContext`/
+  // `toggleRuleOos` below, which stay local-state-then-canvas-save: they
+  // touch ordering / organizational / scope-override fields that are
+  // excluded from the pending-review gate (see workflow_rule_fingerprint on
+  // the backend).
   const removeRule = (key: string) => {
-    if (readOnly) return;
-    onChange(rules.filter((r) => r.key !== key), tools);
+    if (readOnly || !workflowId) return;
+    const rule = rules.find((r) => r.key === key);
+    setProposeError(null);
+    proposeChange.mutate({
+      shape_id: nodeId, rule_key: key, kind: "delete", fields: {},
+      is_custom: rule?.is_custom ?? false,
+    });
   };
   const moveRule = (key: string, dir: "up" | "down") => {
     if (readOnly) return;
@@ -317,6 +370,36 @@ function RulesOnlyPanel({
   const updateRuleContext = (key: string, context: string) => {
     if (readOnly) return;
     onChange(rules.map((r) => r.key === key ? { ...r, additional_context: context } : r), tools);
+  };
+  const editRule = (key: string, condition: string, action: string) => {
+    if (readOnly || !workflowId) return;
+    const rule = rules.find((r) => r.key === key);
+    setProposeError(null);
+    proposeChange.mutate({
+      shape_id: nodeId, rule_key: key, kind: "edit",
+      fields: { condition, action },
+      is_custom: rule?.is_custom ?? false,
+    });
+  };
+  const addCustomRule = (rule: AttachedSopRule) => {
+    if (readOnly || !workflowId) return;
+    setProposeError(null);
+    proposeChange.mutate({
+      shape_id: nodeId, rule_key: rule.key, kind: "add",
+      fields: {
+        condition: rule.condition,
+        action: rule.action,
+        decision_type: rule.decision_type,
+        codes: rule.codes,
+        section_label: rule.section_label,
+        additional_context: rule.additional_context,
+        parent_key: rule.parent_key,
+        depth: rule.depth,
+        sop_title: rule.sop_title,
+        source: rule.source,
+      },
+      is_custom: true,
+    });
   };
   const toggleRuleOos = (key: string, nextOos: boolean) => {
     if (readOnly) return;
@@ -368,17 +451,36 @@ function RulesOnlyPanel({
               {tools.length}
             </span>
           </div>
+          {pendingKeys.size > 0 && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-500/10 px-1.5 py-0.5 rounded-full">
+                {pendingKeys.size} pending review
+              </span>
+            </>
+          )}
         </div>
         {!readOnly && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-3 text-[11px] gap-1"
-            onClick={() => setPickerOpen(true)}
-          >
-            <Plus className="h-3 w-3" />
-            Add / edit
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-[11px] gap-1"
+              onClick={() => setCustomFormOpen((v) => !v)}
+            >
+              <Wand2 className="h-3 w-3" />
+              Custom rule
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-[11px] gap-1"
+              onClick={() => setPickerOpen(true)}
+            >
+              <Plus className="h-3 w-3" />
+              Add / edit
+            </Button>
+          </div>
         )}
       </div>
 
@@ -392,14 +494,30 @@ function RulesOnlyPanel({
             <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Rules</span>
             <div className="flex-1 h-px bg-border" />
           </div>
+          {proposeError && (
+            <p className="mb-3 rounded border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              {proposeError}
+            </p>
+          )}
+          {customFormOpen && !readOnly && (
+            <div className="mb-3">
+              <CustomRuleForm
+                ordering={rules.length}
+                onAdd={addCustomRule}
+                onClose={() => setCustomFormOpen(false)}
+              />
+            </div>
+          )}
           {rules.length === 0 ? (
             <p className="text-[11px] text-muted-foreground italic">
-              No rules attached. Rules are auto-attached from the ingested SOP.
+              No rules attached. Rules are auto-attached from the ingested SOP, or add a custom
+              rule above.
             </p>
           ) : (
             <ul className="space-y-1.5">
               {rules.map((r, i) => {
                 const rDepth = depthByKey.get(r.key) ?? 0;
+                const pending = pendingKeys.has(r.key);
                 return (
                   <AttachedRuleCard
                     key={r.key}
@@ -408,11 +526,13 @@ function RulesOnlyPanel({
                     allRules={rules}
                     depthByKey={depthByKey}
                     readOnly={readOnly}
-                    onRemove={readOnly ? undefined : removeRule}
+                    pending={pending}
+                    onRemove={readOnly || pending ? undefined : removeRule}
                     onMoveUp={readOnly || i === 0 ? undefined : () => moveRule(r.key, "up")}
                     onMoveDown={readOnly || i >= rules.length - 1 ? undefined : () => moveRule(r.key, "down")}
                     onContextChange={readOnly ? undefined : updateRuleContext}
                     onToggleOutOfScope={readOnly ? undefined : toggleRuleOos}
+                    onEditRule={readOnly || pending ? undefined : editRule}
                   />
                 );
               })}
@@ -1198,6 +1318,7 @@ export default function ConfigPanel({
             <div className="flex flex-col overflow-hidden h-full">
               <RulesOnlyPanel
               workflowId={workflowId}
+              nodeId={node.id}
               rules={attachedRules}
               tools={attachedTools}
               onChange={setAttachments}

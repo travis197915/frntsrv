@@ -46,6 +46,8 @@ import NodePalette from "../components/NodePalette";
 import ConfigPanel from "../components/ConfigPanel";
 import WorkflowContextPanel from "../components/WorkflowContextPanel";
 import WorkflowVersionHistoryPanel from "../components/WorkflowVersionHistoryPanel";
+import WorkflowRuleChangeReviewPanel from "../components/WorkflowRuleChangeReviewPanel";
+import { useOpenCanvasChangeSets } from "../hooks/useWorkflowRuleChangeSets";
 import {
   ShapeCatalogProvider,
   useShapeCatalog,
@@ -202,9 +204,15 @@ function WorkflowBuilderInner() {
   const ui = useWorkflowUiColors();
   const [isExecutionMode, setIsExecutionMode] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showPendingRuleChanges, setShowPendingRuleChanges] = useState(false);
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Pending builder-canvas rule changes (add/edit/delete) awaiting review —
+  // a rule edit never touches the canvas until its batch is approved here.
+  const { data: openRuleChangeBatches } = useOpenCanvasChangeSets(id);
+  const pendingRuleChangeCount = openRuleChangeBatches?.count ?? 0;
 
   // ── Corebackend: load workflow ─────────────────────────────────────────────
   const isNew = !id || id === "new";
@@ -605,6 +613,17 @@ function WorkflowBuilderInner() {
             </span>
           )}
 
+          {pendingRuleChangeCount > 0 && !isExecutionMode && (
+            <button
+              type="button"
+              onClick={() => setShowPendingRuleChanges(true)}
+              className="text-[10px] text-violet-700 dark:text-violet-300 font-medium px-1.5 py-0.5 rounded bg-violet-500/10 hover:bg-violet-500/20 transition-colors cursor-pointer"
+              title="Review pending rule changes"
+            >
+              {pendingRuleChangeCount} rule {pendingRuleChangeCount === 1 ? "change" : "changes"} pending
+            </button>
+          )}
+
           {execution.runId && isExecutionMode && (
             <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium px-1.5 py-0.5 rounded bg-blue-500/10 font-mono">
               Run #{execution.runId}
@@ -850,6 +869,13 @@ function WorkflowBuilderInner() {
             workflowId={id}
             liveSops={workflowData?.workflow?.sops ?? []}
             onClose={() => setShowVersionHistory(false)}
+          />
+        )}
+
+        {showPendingRuleChanges && !isNew && id && (
+          <WorkflowRuleChangeReviewPanel
+            workflowId={id}
+            onClose={() => setShowPendingRuleChanges(false)}
           />
         )}
       </ResizablePanelGroup>

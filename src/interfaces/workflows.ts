@@ -165,6 +165,18 @@ export interface AttachedSopRule {
    * `Shape.properties.sop_rules` rather than as SOP-backed bindings.
    */
   is_custom?: boolean;
+  /**
+   * Set by the backend rollout (roll_workflow_forward) when this custom rule
+   * used to be a SOP-backed binding whose source decision was removed by a
+   * later SOP version, but whose condition/action had been hand-edited — so
+   * it was preserved as a custom rule instead of silently dropped. Present
+   * only on rules created this way; distinguishes them from deliberately
+   * authored custom rules so the auditor can tell the two apart.
+   */
+  orphaned_from_rule_key?: string;
+  orphaned_from_sop_id?: number;
+  orphaned_reason?: string;
+  orphaned_at?: string;
 }
 
 export interface AttachedTool {

@@ -56,6 +56,39 @@ export interface RuleChangeProposal {
   current: RuleFields;
   dependent_steps: DependentStep[];
   affected_workflows: { id: string; name: string }[];
+  /** Only present on a `source=canvas` proposal (a builder-canvas rule edit). */
+  shape_id?: string | null;
+  workbench_id?: string | null;
+  node_key?: string;
+  is_custom?: boolean;
+}
+
+/** The canvas-specific rule fields — a subset of `RuleFields`' scope, since a
+ *  canvas rule lives in `Shape.properties.sop_rules[]`, not `AuditDecision`. */
+export interface CanvasRuleFields {
+  condition?: string | null;
+  action?: string | null;
+  decision_type?: string | null;
+  codes?: string[] | null;
+  subrule_id?: string | null;
+}
+
+/** One rule's pending change inside a `source=canvas` change set — the
+ *  canvas-review-panel analog of `RuleChangeProposal`. */
+export interface CanvasRuleChangeProposal {
+  id: number;
+  shape_id: string | null;
+  workbench_id: string | null;
+  node_key: string;
+  rule_key: string;
+  change_kind: RuleChangeKind;
+  is_custom: boolean;
+  display_rule_id: string;
+  subrule_id: string;
+  title: string;
+  fields_changed: string[];
+  previous: CanvasRuleFields;
+  current: CanvasRuleFields;
 }
 
 export interface SopChangeSet {
@@ -95,6 +128,49 @@ export interface SopChangeSetListItem {
   created_at: string;
 }
 
+/**
+ * A `source=canvas` change set — a batch of pending builder-canvas rule
+ * edits (add/edit/delete of an SOP-derived or custom rule), reviewed through
+ * the SAME `/rule-changesets/` endpoints as SOP-ingestion/manual batches.
+ * `sop` is null for a batch that only touches custom rules.
+ */
+export interface CanvasChangeSet {
+  id: number;
+  status: string;
+  stale: boolean;
+  source: 'canvas';
+  sop: { id: number; title: string; version: number; version_number: number } | null;
+  workflow: { id: string | null; name: string };
+  workflow_names: string[];
+  from_version: number;
+  to_version: number;
+  summary: { modified: number; added: number; removed: number };
+  proposal_count: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  reviewed_by: string;
+  reviewed_at: string | null;
+  review_note: string;
+  resulting_version: number | null;
+  proposals?: CanvasRuleChangeProposal[];
+}
+
+export interface CanvasChangeSetListItem {
+  id: number;
+  status: string;
+  stale: boolean;
+  source: 'canvas';
+  sop: { id: number; title: string; version: number; version_number: number } | null;
+  workflow: { id: string | null; name: string };
+  from_version: number;
+  to_version: number;
+  summary: { modified: number; added: number; removed: number };
+  proposal_count: number;
+  created_by: string;
+  created_at: string;
+}
+
 export const sopChangesApi = {
   /**
    * Every re-ingestion batch still awaiting a decision, newest first.
@@ -109,8 +185,25 @@ export const sopChangesApi = {
     );
   },
 
-  get(changeSetId: number): Promise<SopChangeSet> {
-    return ingestClient.get<SopChangeSet>(`/rule-changesets/${changeSetId}/`);
+  /**
+   * Every OPEN canvas rule-change batch (add/edit/delete of a rule on the
+   * builder canvas) for one workflow, newest first. Powers the "pending
+   * review" badges on the canvas and the review panel's batch list.
+   */
+  listOpenForWorkflow(
+    workflowId: string,
+    limit = 25,
+  ): Promise<{ count: number; results: CanvasChangeSetListItem[] }> {
+    return ingestClient.get(
+      `/rule-changesets/?status=open&source=canvas&workflow_id=${workflowId}&limit=${limit}`,
+    );
+  },
+
+  /** Generic so a canvas-sourced change set can be typed as `CanvasChangeSet`
+   *  at the call site instead of `SopChangeSet` — same endpoint, the payload
+   *  shape just differs by `source`. */
+  get<T = SopChangeSet>(changeSetId: number): Promise<T> {
+    return ingestClient.get<T>(`/rule-changesets/${changeSetId}/`);
   },
 
   /**

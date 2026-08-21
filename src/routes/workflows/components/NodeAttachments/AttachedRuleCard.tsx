@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban, Eye } from "lucide-react";
+import { X, ChevronUp, ChevronDown, NotebookPen, ListPlus, Ban, Eye, Pencil, Unlink, Clock } from "lucide-react";
 import { DECISION_TONE } from "@/utils/nodeAttachments";
 import type { AttachedSopRule } from "@/interfaces/workflows";
 import AdditionalContextDialog from "./AdditionalContextDialog";
+import EditRuleDialog from "./EditRuleDialog";
 
 interface AttachedRuleCardProps {
   rule: AttachedSopRule;
@@ -15,6 +16,12 @@ interface AttachedRuleCardProps {
   onToggleOutOfScope?: (key: string, next: boolean) => void;
   /** Open the inline form to add a sub-rule nested under this rule. */
   onAddSubRule?: (parentKey: string) => void;
+  /** Persist edited condition/action text for this rule. */
+  onEditRule?: (key: string, condition: string, action: string) => void;
+  /** True when this rule has an open, unreviewed canvas rule-change proposal
+   *  — the rule shown is still the last-approved content; edit/remove are
+   *  disabled until the pending change is approved or rejected. */
+  pending?: boolean;
   readOnly?: boolean;
   /** Nesting level used for indentation (0 = top-level rule). */
   depth?: number;
@@ -32,6 +39,8 @@ export default function AttachedRuleCard({
   onContextChange,
   onToggleOutOfScope,
   onAddSubRule,
+  onEditRule,
+  pending = false,
   readOnly = false,
   depth = 0,
   allRules,
@@ -39,7 +48,9 @@ export default function AttachedRuleCard({
 }: AttachedRuleCardProps) {
   const [showCtx, setShowCtx] = useState(false);
   const [ctxDialog, setCtxDialog] = useState(false);
+  const [editDialog, setEditDialog] = useState(false);
   const hasContext = !!(rule.additional_context ?? "").trim();
+  const isOrphaned = !!rule.orphaned_from_rule_key;
   // `is_out_of_scope` is the effective flag the backend recomputes (SOP-derived
   // OR manual, minus any force-in-scope override). Drive the UI off it so an
   // ingestion-flagged out-of-scope rule can be toggled back into scope too.
@@ -94,6 +105,24 @@ export default function AttachedRuleCard({
                 Out of scope
               </span>
             )}
+            {pending && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-violet-100 text-violet-800 border border-violet-300"
+                title="An edit to this rule is awaiting review — the content shown is still the last-approved version."
+              >
+                <Clock className="h-2.5 w-2.5" />
+                Pending review
+              </span>
+            )}
+            {isOrphaned && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
+                title={`Was a SOP rule (${rule.orphaned_from_rule_key}); the source rule was removed by a newer SOP version, so your edit was preserved here as a workflow-only rule. Review recommended.`}
+              >
+                <Unlink className="h-2.5 w-2.5" />
+                Disconnected from SOP
+              </span>
+            )}
             <span className="text-[10px] text-muted-foreground truncate">
               {rule.section_label}
             </span>
@@ -138,8 +167,19 @@ export default function AttachedRuleCard({
       </div>
 
       {/* Labeled action bar — explicit buttons instead of tiny icons */}
-      {(onToggleOutOfScope || onRemove || onAddSubRule || onContextChange || hasContext) && (
+      {(onToggleOutOfScope || onRemove || onAddSubRule || onContextChange || hasContext || onEditRule) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {onEditRule && (
+            <button
+              type="button"
+              onClick={() => setEditDialog(true)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] font-medium transition-colors"
+              title="Edit this rule's condition/action"
+            >
+              <Pencil className="h-3 w-3" />
+              Edit
+            </button>
+          )}
           {onToggleOutOfScope && (
             <button
               type="button"
@@ -217,6 +257,19 @@ export default function AttachedRuleCard({
             </button>
           )}
         </div>
+      )}
+
+      {onEditRule && (
+        <EditRuleDialog
+          open={editDialog}
+          ruleLabel={rule.subrule_id || rule.section_label || rule.key}
+          initialCondition={rule.condition}
+          initialAction={rule.action}
+          isSopBacked={!rule.is_custom}
+          readOnly={readOnly}
+          onClose={() => setEditDialog(false)}
+          onSave={(condition, action) => onEditRule(rule.key, condition, action)}
+        />
       )}
 
       <AdditionalContextDialog

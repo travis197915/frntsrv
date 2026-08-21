@@ -18,6 +18,7 @@ import type {
   BuilderConnection,
   BuilderGraph,
   BuilderWorkflow,
+  SopVersionAdoptResult,
   SopVersionPreview,
   WorkflowVersion,
 } from "../interfaces/builder";
@@ -62,6 +63,7 @@ export type {
   BuilderWorkArea,
   BuilderWorkbench,
   WorkflowVersion,
+  WorkflowVersionRule,
   WorkflowVersionSop,
 } from "../interfaces/builder";
 
@@ -94,6 +96,29 @@ export interface SopColumn {
 export interface WorkbenchContextResponse {
   workbench_id: string;
   extra_context: string;
+}
+
+// ── Canvas rule-change pending review ───────────────────────────────────────
+
+export type CanvasRuleChangeKindInput = 'add' | 'edit' | 'delete';
+
+export interface ProposeRuleChangeRequest {
+  shape_id: string;
+  rule_key: string;
+  kind: CanvasRuleChangeKindInput;
+  /** Required for add/edit; ignored for delete. */
+  fields: Record<string, unknown>;
+  is_custom?: boolean;
+}
+
+export interface ProposeRuleChangeResponse {
+  changeset_id: number;
+  proposal_id: number;
+  status: string;
+  rule_key: string;
+  fields_changed: string[];
+  from_version: number;
+  to_version: number;
 }
 
 // ── YAML ↔ DB rule reconciliation (SOP "version control") ───────────────────
@@ -573,6 +598,22 @@ export const workflowsApi = {
     );
   },
 
+  /**
+   * Start a reviewable rollout batch onto `sopId` (the document's current
+   * active version) for a workflow that has no open change set yet — e.g.
+   * because the version was activated directly, or this workflow wasn't the
+   * one named on the ingestion job that produced it. Once created, the same
+   * `getVersionPreview` call above will find and render it.
+   */
+  async adoptSopVersion(
+    id: string,
+    sopId: number,
+  ): Promise<SopVersionAdoptResult> {
+    return builderClient.post<SopVersionAdoptResult>(
+      `/workflows/${id}/version-adopt/?sop_id=${sopId}`,
+    );
+  },
+
   async attach(
     id: string,
     input: {
@@ -685,6 +726,23 @@ export const workflowsApi = {
   async versionDetail(id: string, versionNumber: number): Promise<WorkflowVersion> {
     return builderClient.get<WorkflowVersion>(
       `/workflows/${id}/versions/${versionNumber}/`,
+    );
+  },
+
+  /**
+   * Propose an add/edit/delete of one canvas rule (SOP-derived or custom).
+   * Does NOT touch the node's rules — it lands as a pending
+   * `RuleChangeSet`/`RuleChangeProposal` (source=canvas) and waits for review
+   * via the same `/api/ingest/rule-changesets/<id>/approve|reject/` endpoints
+   * SOP-ingestion changes use (see `sopChangesApi`).
+   */
+  async proposeRuleChange(
+    workflowId: string,
+    body: ProposeRuleChangeRequest,
+  ): Promise<ProposeRuleChangeResponse> {
+    return builderClient.post<ProposeRuleChangeResponse>(
+      `/workflows/${workflowId}/rule-changes/propose/`,
+      body,
     );
   },
 

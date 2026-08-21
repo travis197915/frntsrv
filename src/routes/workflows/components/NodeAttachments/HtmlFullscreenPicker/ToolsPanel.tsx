@@ -1,6 +1,6 @@
 import ToolsTab from "../RulePicker/ToolsTab";
 import type { AttachableSopRule, WorkflowAttachable } from "@/lib/workflowsApi";
-import type { AttachableTool } from "@/interfaces/workflows";
+import type { AttachableTool, AttachedSopRule } from "@/interfaces/workflows";
 
 interface Props {
   data: WorkflowAttachable | null;
@@ -12,6 +12,8 @@ interface Props {
   ruleByKey: Map<string, AttachableSopRule>;
   readOnly: boolean;
   onToggleTool: (toolKey: string, ruleKey: string | null) => void;
+  customRules?: AttachedSopRule[];
+  onFocusRef?: (key: string | null) => void;
 }
 
 export default function ToolsPanel({
@@ -24,6 +26,8 @@ export default function ToolsPanel({
   ruleByKey,
   readOnly,
   onToggleTool,
+  customRules,
+  onFocusRef,
 }: Props) {
   return (
     <div className="flex-1 overflow-y-auto min-h-0">
@@ -46,6 +50,8 @@ export default function ToolsPanel({
           ruleByKey={ruleByKey}
           readOnly={readOnly}
           onToggleTool={onToggleTool}
+          customRules={customRules}
+          onFocusRef={onFocusRef}
         />
       )}
     </div>

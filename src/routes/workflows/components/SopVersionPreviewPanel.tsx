@@ -228,6 +228,21 @@ export default function SopVersionPreviewPanel({
     onError: (e) => setActionError(readError(e)),
   });
 
+  // Nothing has ever opened a review for this workflow+version pair — e.g.
+  // the version was activated directly, or this workflow wasn't the one an
+  // ingestion job named. Starting one just creates the same reviewable batch
+  // a real re-ingestion would; the diff/approve UI below takes over once the
+  // preview refetches and finds it.
+  const adopt = useMutation({
+    mutationFn: () => workflowsApi.adoptSopVersion(workflowId, sopId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['sop-version-preview', workflowId, sopId],
+      });
+    },
+    onError: (e) => setActionError(readError(e)),
+  });
+
   const busy = approve.isPending || reject.isPending;
   const report = preview?.report;
 
@@ -286,11 +301,41 @@ export default function SopVersionPreviewPanel({
 
       {changeSetId == null && !isLoading && (
         <div className="flex-1 p-6">
-          <p className="rounded border border-border bg-muted/40 p-4 text-xs text-muted-foreground">
-            {preview?.projected === false
-              ? 'This is the version the canvas is running — there is nothing pending to review.'
-              : 'No pending change set for this version.'}
-          </p>
+          {preview?.projected === false ? (
+            <p className="rounded border border-border bg-muted/40 p-4 text-xs text-muted-foreground">
+              This is the version the canvas is running — there is nothing pending to review.
+            </p>
+          ) : (
+            <div className="space-y-3 rounded border border-border bg-muted/40 p-4">
+              <p className="text-xs text-muted-foreground">
+                No review has been started for this version yet — this can
+                happen when the version was activated directly, or this
+                workflow wasn't the one a re-ingestion targeted. Starting one
+                creates the same reviewable diff a re-ingestion would.
+              </p>
+              {actionError && (
+                <p className="rounded border border-red-200 bg-red-50 p-2 text-[11px] text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                  {actionError}
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={adopt.isPending}
+                onClick={() => {
+                  setActionError(null);
+                  adopt.mutate();
+                }}
+                className="flex items-center justify-center gap-2 rounded bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {adopt.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-3.5 w-3.5" />
+                )}
+                Start review — adopt {versionLabel}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

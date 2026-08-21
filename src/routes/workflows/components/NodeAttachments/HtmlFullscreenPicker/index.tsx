@@ -662,6 +662,8 @@ export default function FullscreenAttachmentPicker({
               ruleByKey={ruleByKey}
               readOnly={readOnly}
               onToggleTool={toggleToolForRule}
+              customRules={existingRules.filter((r) => r.is_custom)}
+              onFocusRef={setFocusedRefKey}
             />
           )}
         </div>
