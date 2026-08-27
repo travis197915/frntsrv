@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useNodesState,
   useEdgesState,
@@ -17,6 +18,7 @@ import type {
   WorkflowMeta,
 } from '../types';
 import type { ShapeDefinition } from '@/lib/api';
+import { canvasChangeSetKeys } from './useWorkflowRuleChangeSets';
 
 let idCounter = 0;
 // Node IDs must be UUIDs so Django persists them verbatim (see
@@ -113,6 +115,7 @@ export function useWorkflowCanvas(
   const rfInstance = useRef<ReactFlowInstance | null>(null);
   const { getNodes } = useReactFlow();
   const { onSave, shapeCatalog } = options;
+  const queryClient = useQueryClient();
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null;
 
@@ -283,6 +286,21 @@ export function useWorkflowCanvas(
         setWorkflowMeta((m) => ({ ...m, id: result.id! }));
       }
       setIsDirty(false);
+
+      // A structural save (node add/delete/move, tool change, etc.) can
+      // change Workflow.version and the set of pending canvas rule changes
+      // (e.g. a proposal's target node just got deleted) — refresh the same
+      // surfaces useCanvasChangeSetActions refreshes on approve/reject, so
+      // the pending-changes badge and version/outdated indicator don't wait
+      // for the next poll.
+      const savedWorkflowId = result?.id ?? workflowMeta.id;
+      if (savedWorkflowId) {
+        void queryClient.invalidateQueries({
+          queryKey: canvasChangeSetKeys.openForWorkflow(savedWorkflowId),
+        });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['canvas-change-set'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow-versions'] });
     } catch (err) {
       const status = (err as { status?: number } | null)?.status;
       let msg: string;
@@ -300,7 +318,7 @@ export function useWorkflowCanvas(
     } finally {
       setIsSaving(false);
     }
-  }, [serializeCanvas, workflowMeta.id, workflowMeta.name, workflowMeta.description, onSave, setWorkflowMeta]);
+  }, [serializeCanvas, workflowMeta.id, workflowMeta.name, workflowMeta.description, onSave, setWorkflowMeta, queryClient]);
 
   const onConnect = useCallback(
     (params: Connection) => {
